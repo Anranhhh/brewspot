@@ -1,0 +1,18 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Python IDE & Virtual Environments
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# IDEs
+.cursor/
+.vscode/
