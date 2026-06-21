@@ -1,0 +1,24 @@
+{
+  "name": "BrewSpot — Find Your Next Favorite Coffee Spot",
+  "short_name": "BrewSpot",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f2ede4",
+  "theme_color": "#704214",
+  "orientation": "portrait",
+  "description": "Find your next favorite coffee spot, view reviews, and save locations on the go.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
