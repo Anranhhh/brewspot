@@ -33,6 +33,8 @@ export interface Cafe {
   heroImage: string;
   inspirationImages: string[];
   isSaved?: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 export type ProfileTab = 'posts' | 'liked' | 'saved' | 'shops';

@@ -16,7 +16,9 @@ MOCK_CAFES = [
         "author": "Sophia Miller",
         "author_avatar": "bg-pink-100",
         "tags": ["Minimalist", "Matcha", "Study Server"],
-        "description": "A pristine white-themed cafe perfect for focused reading minimal distractions. Known for their ceremonial grade matcha and delicate pastries."
+        "description": "A pristine white-themed cafe perfect for focused reading minimal distractions. Known for their ceremonial grade matcha and delicate pastries.",
+        "latitude": 40.7465,
+        "longitude": -74.0014
     },
     {
         "name": "Velvet & Vine",
@@ -26,7 +28,9 @@ MOCK_CAFES = [
         "author": "Marcus Thorne",
         "author_avatar": "bg-amber-100",
         "tags": ["Vintage", "Pour Over", "Evening"],
-        "description": "Cozy dimly lit space with vintage velvet seating and extensive pour-over options. Perfect for evening dates or late-night conversations."
+        "description": "Cozy dimly lit space with vintage velvet seating and extensive pour-over options. Perfect for evening dates or late-night conversations.",
+        "latitude": 40.7246,
+        "longitude": -73.9996
     },
     {
         "name": "Lumina Roasters",
@@ -36,7 +40,9 @@ MOCK_CAFES = [
         "author": "Elena Rose",
         "author_avatar": "bg-blue-100",
         "tags": ["Industrial", "Espresso", "Bakery"],
-        "description": "Industrial chic roastery with in-house bakery. The aroma of freshly roasted beans hits you the moment you walk in. Excellent espresso flights."
+        "description": "Industrial chic roastery with in-house bakery. The aroma of freshly roasted beans hits you the moment you walk in. Excellent espresso flights.",
+        "latitude": 40.7580,
+        "longitude": -73.9855
     }
 ]
 
@@ -60,7 +66,9 @@ def seed_content():
             "address": cafe["distance"],
             "rating": cafe["rating"],
             "hero_image": cafe["image"],
-            "tags": cafe["tags"]
+            "tags": cafe["tags"],
+            "latitude": cafe.get("latitude"),
+            "longitude": cafe.get("longitude")
         }
         res = client.table("cafes").insert(payload).execute()
         if res.data:

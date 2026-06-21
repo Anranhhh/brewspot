@@ -141,10 +141,14 @@ export async function getCafeById(cafeId: string): Promise<Cafe> {
 /**
  * Toggle save state on a cafe.
  * @param cafeId Cafe UUID
+ * @param cafeDetails Optional cafe details for auto-creation
  * @returns { isSaved: boolean }
  */
-export async function toggleSaveCafe(cafeId: string): Promise<{ isSaved: boolean }> {
-  return apiFetch('/cafes/' + cafeId + '/save', { method: 'POST' });
+export async function toggleSaveCafe(cafeId: string, cafeDetails?: Cafe): Promise<{ isSaved: boolean }> {
+  return apiFetch('/cafes/' + cafeId + '/save', {
+    method: 'POST',
+    body: cafeDetails ? JSON.stringify(cafeDetails) : undefined,
+  });
 }
 
 // --- Posts ---

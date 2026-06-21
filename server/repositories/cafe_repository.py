@@ -88,3 +88,41 @@ def get_saved_cafe_ids(user_id: str) -> list[str]:
         .execute()
     )
     return [row["cafe_id"] for row in response.data]
+
+
+def create_cafe(
+    id: str,
+    name: str,
+    rating: float = 0.0,
+    reviews: int = 0,
+    price_level: str = "",
+    cafe_type: str = "Cafe",
+    address: str = "",
+    status: str = "",
+    tags: list[str] = [],
+    hero_image: str = "",
+    inspiration_images: list[str] = [],
+    latitude: float | None = None,
+    longitude: float | None = None
+) -> dict:
+    """
+    Insert a new cafe into the cafes table.
+    """
+    client = get_supabase_client()
+    payload = {
+        "id": id,
+        "name": name,
+        "rating": rating,
+        "reviews": reviews,
+        "price_level": price_level,
+        "type": cafe_type,
+        "address": address,
+        "status": status,
+        "tags": tags,
+        "hero_image": hero_image,
+        "inspiration_images": inspiration_images,
+        "latitude": latitude,
+        "longitude": longitude
+    }
+    response = client.table("cafes").insert(payload).execute()
+    return response.data[0] if response.data else {}

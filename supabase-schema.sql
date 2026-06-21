@@ -24,6 +24,8 @@ CREATE TABLE public.cafes (
   tags TEXT[] DEFAULT '{}',
   hero_image TEXT,
   inspiration_images TEXT[] DEFAULT '{}',
+  latitude NUMERIC(9, 6),
+  longitude NUMERIC(9, 6),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

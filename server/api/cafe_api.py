@@ -57,5 +57,9 @@ def toggle_save(cafe_id: str):
     if not user_id:
         return jsonify({"error": "Authentication required"}), 401
 
-    result = cafe_service.toggle_save(user_id, cafe_id)
-    return jsonify(result), 200
+    cafe_data = request.get_json(silent=True)
+    try:
+        result = cafe_service.toggle_save(user_id, cafe_id, cafe_data)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400

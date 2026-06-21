@@ -149,18 +149,25 @@ export default function App() {
     } catch { }
   };
 
-  const handleSaveCafe = async (cafeId: string) => {
-    setCafes((prev) =>
-      prev.map((c) => (c.id === cafeId ? { ...c, isSaved: !c.isSaved } : c))
-    );
+  const handleSaveCafe = async (cafeId: string, cafeDetails?: Cafe) => {
+    const exists = cafes.some((c) => c.id === cafeId);
+    if (exists) {
+      setCafes((prev) =>
+        prev.map((c) => (c.id === cafeId ? { ...c, isSaved: !c.isSaved } : c))
+      );
+    } else if (cafeDetails) {
+      setCafes((prev) => [...prev, { ...cafeDetails, isSaved: true }]);
+    }
 
     if (selectedCafe?.id === cafeId) {
       setSelectedCafe((prev) => (prev ? { ...prev, isSaved: !prev.isSaved } : null));
     }
 
     try {
-      await api.toggleSaveCafe(cafeId);
-    } catch { }
+      await api.toggleSaveCafe(cafeId, cafeDetails);
+    } catch (err) {
+      console.error("Failed to toggle save cafe:", err);
+    }
   };
 
   const handleBack = () => {
@@ -213,7 +220,7 @@ export default function App() {
             <CafeDetails
               cafe={selectedCafe}
               onBack={handleBack}
-              onSave={() => handleSaveCafe(selectedCafe.id)}
+              onSave={() => handleSaveCafe(selectedCafe.id, selectedCafe)}
             />
           )}
 
@@ -253,6 +260,7 @@ export default function App() {
               onRetryFeed={() => void fetchFeedData()}
               onSelectCafe={(cafe) => navigateTo('cafe-details', cafe)}
               onNavigate={navigateTo}
+              onSaveCafe={handleSaveCafe}
             />
           )}
 

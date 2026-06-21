@@ -45,6 +45,8 @@ DEMO_CAFES = [
             "https://images.unsplash.com/photo-1507133750040-4a8f57021571?auto=format&fit=crop&q=80&w=400",
             "https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&q=80&w=400",
         ],
+        "latitude": 40.7465,
+        "longitude": -74.0014,
     },
     {
         "name": "Velvet & Vine",
@@ -57,6 +59,8 @@ DEMO_CAFES = [
         "tags": ["Luxury", "Velvet", "Gold Accents"],
         "hero_image": "https://images.unsplash.com/photo-1525610553991-2bede1a236e2?auto=format&fit=crop&q=80&w=800",
         "inspiration_images": [],
+        "latitude": 40.7246,
+        "longitude": -73.9996,
     },
 ]
 
