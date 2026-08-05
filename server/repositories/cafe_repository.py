@@ -36,6 +36,25 @@ def get_cafe_by_id(cafe_id: str) -> dict | None:
     return None
 
 
+def get_cafes_by_ids(cafe_ids: list[str]) -> list[dict]:
+    """
+    Fetch cafes by ID.
+    @param cafe_ids Cafe UUIDs
+    @returns list of cafe dicts
+    """
+    if not cafe_ids:
+        return []
+    client = get_supabase_client()
+    response = (
+        client.table("cafes")
+        .select("*")
+        .in_("id", cafe_ids)
+        .order("rating", desc=True)
+        .execute()
+    )
+    return response.data
+
+
 def is_cafe_saved(user_id: str, cafe_id: str) -> bool:
     """
     Check if a user has saved a specific cafe.

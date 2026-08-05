@@ -50,7 +50,7 @@ export default function Messages({ onBack, currentUser }: MessagesScreenProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col pb-24"
+            className="flex-1 flex flex-col overflow-hidden"
         >
             <header className="sticky top-0 z-50 bg-white backdrop-blur-xl px-4 pt-4 flex flex-col border-b border-primary/10">
                 <div className="flex items-center justify-between mb-2">
@@ -75,7 +75,7 @@ export default function Messages({ onBack, currentUser }: MessagesScreenProps) {
                 </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar bg-white">
+            <div className="flex-1 overflow-y-auto no-scrollbar bg-white pb-28">
                 {isLoading ? (
                     <div className="flex justify-center py-10 opacity-50"><p>Loading...</p></div>
                 ) : activeTab === 'chats' ? (

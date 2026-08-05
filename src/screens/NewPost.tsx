@@ -1,20 +1,58 @@
-import { MapPin, Plus, Send, Star, X } from 'lucide-react';
+import { useState, useRef, ChangeEvent } from 'react';
+import { MapPin, Plus, Send, Star, X, Camera as CameraIcon, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-type NewPostScreenProps = {
-    onClose: () => void;
-};
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 export default function NewPost({ onClose }: { onClose: () => void }) {
+    const [photoUrl, setPhotoUrl] = useState<string>(
+        'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800'
+    );
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const triggerHaptic = async () => {
+        try {
+            await Haptics.impact({ style: ImpactStyle.Light });
+        } catch {
+            // Ignore in web browser if haptics unavailable
+        }
+    };
+
+    const handleSelectPhoto = async () => {
+        await triggerHaptic();
+        try {
+            const image = await Camera.getPhoto({
+                quality: 90,
+                allowEditing: true,
+                resultType: CameraResultType.Uri,
+                source: CameraSource.Prompt, // Prompts user: Take Photo or Choose from Photos
+            });
+            if (image.webPath) {
+                setPhotoUrl(image.webPath);
+            }
+        } catch (err) {
+            // Fallback for desktop web browser if Camera plugin isn't supported
+            fileInputRef.current?.click();
+        }
+    };
+
+    const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setPhotoUrl(url);
+        }
+    };
+
     return (
         <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="absolute inset-0 bg-white z-[100] flex flex-col"
+            className="fixed inset-0 bg-white z-[100] flex flex-col pt-safe"
         >
-            <header className="px-6 py-4 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10">
+            <header className="px-6 py-4 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100">
                 <button onClick={onClose} className="w-10 h-10 flex items-center justify-start text-slate-400">
                     <X className="w-6 h-6" />
                 </button>
@@ -23,15 +61,27 @@ export default function NewPost({ onClose }: { onClose: () => void }) {
             </header>
 
             <main className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar">
-                <div className="mt-4 aspect-square relative rounded-xl overflow-hidden group">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileInputChange}
+                    accept="image/*"
+                    className="hidden"
+                />
+
+                <div 
+                    onClick={handleSelectPhoto}
+                    className="mt-4 aspect-square relative rounded-2xl overflow-hidden group cursor-pointer border border-slate-100 shadow-sm"
+                >
                     <img
-                        src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800"
+                        src={photoUrl}
                         className="w-full h-full object-cover"
                         alt="Preview"
                     />
-                    <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-sm font-medium">
-                            Change Photo
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-white/90 backdrop-blur-md px-5 py-2.5 rounded-full text-slate-900 text-sm font-semibold flex items-center gap-2 shadow-lg">
+                            <CameraIcon className="w-4 h-4 text-primary" />
+                            <span>Take or Choose Photo</span>
                         </div>
                     </div>
                 </div>
@@ -79,9 +129,12 @@ export default function NewPost({ onClose }: { onClose: () => void }) {
                 </div>
             </main>
 
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/90 to-transparent">
+            <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/90 to-transparent pb-safe">
                 <button
-                    onClick={onClose}
+                    onClick={() => {
+                        triggerHaptic();
+                        onClose();
+                    }}
                     className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-full shadow-lg shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                     <span>Share Post</span>

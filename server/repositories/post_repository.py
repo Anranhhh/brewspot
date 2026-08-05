@@ -61,6 +61,25 @@ def get_posts_by_user(user_id: str) -> list[dict]:
     return response.data
 
 
+def get_posts_by_ids(post_ids: list[str]) -> list[dict]:
+    """
+    Fetch posts by ID, including author info.
+    @param post_ids Post UUIDs
+    @returns list of post dicts
+    """
+    if not post_ids:
+        return []
+    client = get_supabase_client()
+    response = (
+        client.table("posts")
+        .select("*, users!posts_user_id_fkey(id, name, profile)")
+        .in_("id", post_ids)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return response.data
+
+
 def create_post(
     user_id: str,
     image_url: str,

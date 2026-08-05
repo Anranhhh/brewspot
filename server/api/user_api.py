@@ -5,7 +5,7 @@ User API — request parsing and response encapsulation for user profiles.
 import logging
 from flask import Blueprint, request, jsonify
 from server.repositories import user_repository
-from server.services import post_service, auth_service
+from server.services import post_service, cafe_service, auth_service
 
 logger = logging.getLogger(__name__)
 user_bp = Blueprint("users", __name__, url_prefix="/api/users")
@@ -44,3 +44,45 @@ def get_user_posts(user_id: str):
     current_user_id = _get_current_user_id()
     posts = post_service.get_user_posts(user_id, current_user_id)
     return jsonify(posts), 200
+
+
+@user_bp.route("/<user_id>/liked-posts", methods=["GET"])
+def get_liked_posts(user_id: str):
+    """
+    Get posts liked by the authenticated profile owner.
+    GET /api/users/:id/liked-posts
+    """
+    current_user_id = _get_current_user_id()
+    if current_user_id != user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    posts = post_service.get_liked_posts(user_id)
+    return jsonify(posts), 200
+
+
+@user_bp.route("/<user_id>/saved-posts", methods=["GET"])
+def get_saved_posts(user_id: str):
+    """
+    Get posts saved by the authenticated profile owner.
+    GET /api/users/:id/saved-posts
+    """
+    current_user_id = _get_current_user_id()
+    if current_user_id != user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    posts = post_service.get_saved_posts(user_id)
+    return jsonify(posts), 200
+
+
+@user_bp.route("/<user_id>/saved-cafes", methods=["GET"])
+def get_saved_cafes(user_id: str):
+    """
+    Get cafes saved by the authenticated profile owner.
+    GET /api/users/:id/saved-cafes
+    """
+    current_user_id = _get_current_user_id()
+    if current_user_id != user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    cafes = cafe_service.get_saved_cafes(user_id)
+    return jsonify(cafes), 200

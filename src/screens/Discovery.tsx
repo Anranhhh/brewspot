@@ -42,7 +42,7 @@ export default function Discovery({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col pb-24"
+            className="flex-1 flex flex-col pb-28 overflow-y-auto no-scrollbar"
         >
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl px-6 pt-6 pb-2">
                 <div className="flex items-center justify-between mb-6">
@@ -86,7 +86,7 @@ export default function Discovery({
                 </div>
             )}
 
-            <div className="overflow-x-auto no-scrollbar py-4 px-6 flex items-center gap-2 whitespace-nowrap">
+            <div className="overflow-x-auto no-scrollbar py-8 px-6 flex items-center gap-2 whitespace-nowrap">
                 {categories.map((cat) => (
                     <button
                         key={cat}
@@ -126,37 +126,37 @@ export default function Discovery({
                     <div className="overflow-x-auto no-scrollbar flex gap-5 px-6 pb-4">
                         {!isLoading &&
                             cafes.map((cafe) => (
-                            <div
-                                key={cafe.id}
-                                className="min-w-[280px] group cursor-pointer"
-                                onClick={() => onSelectCafe(cafe)}
-                            >
-                                <div className="relative h-[360px] rounded-lg overflow-hidden shadow-xl">
-                                    <img src={cafe.heroImage} className="w-full h-full object-cover" alt={cafe.name} />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                                <div
+                                    key={cafe.id}
+                                    className="min-w-[280px] group cursor-pointer"
+                                    onClick={() => onSelectCafe(cafe)}
+                                >
+                                    <div className="relative h-[360px] rounded-lg overflow-hidden shadow-xl">
+                                        <img src={cafe.heroImage} className="w-full h-full object-cover" alt={cafe.name} />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
 
-                                    <div className="absolute bottom-5 left-5 right-5 text-white">
-                                        <div className="flex items-center gap-1 mb-1">
-                                            <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                                            <span className="text-xs font-semibold">
-                                                {cafe.rating} ({formatReviewCount(cafe.reviews)} reviews)
-                                            </span>
+                                        <div className="absolute bottom-5 left-5 right-5 text-white">
+                                            <div className="flex items-center gap-1 mb-1">
+                                                <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                                                <span className="text-xs font-semibold">
+                                                    {cafe.rating} ({formatReviewCount(cafe.reviews)} reviews)
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg font-bold">{cafe.name}</h3>
+                                            <p className="text-sm text-white/80">{cafe.address}</p>
                                         </div>
-                                        <h3 className="text-lg font-bold">{cafe.name}</h3>
-                                        <p className="text-sm text-white/80">{cafe.address}</p>
-                                    </div>
 
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onSaveCafe(cafe.id);
-                                        }}
-                                        className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center"
-                                    >
-                                        <Heart className={`w-5 h-5 ${cafe.isSaved ? 'text-primary fill-primary' : 'text-white'}`} />
-                                    </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onSaveCafe(cafe.id);
+                                            }}
+                                            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center"
+                                        >
+                                            <Heart className={`w-5 h-5 ${cafe.isSaved ? 'text-primary fill-primary' : 'text-white'}`} />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
                             ))}
                     </div>
                 </section>
@@ -174,29 +174,29 @@ export default function Discovery({
                     <div className="columns-2 gap-4 space-y-4">
                         {!isLoading &&
                             posts.map((post) => (
-                            <div
-                                key={post.id}
-                                onClick={() => onSelectPost(post)}
-                                className="break-inside-avoid relative rounded-xl overflow-hidden shadow-sm group cursor-pointer"
-                            >
-                                <img src={post.imageUrl} className="w-full object-cover" alt="Inspiration" />
-                                <div className="p-3 bg-white">
-                                    <div className="flex items-center gap-2">
-                                        <img src={post.author?.profile} className="w-5 h-5 rounded-full object-cover" alt={post.author?.name} />
-                                        <span className="text-[10px] font-medium opacity-70">@{post.author?.name}</span>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onLikePost(post.id);
-                                    }}
-                                    className="absolute top-2 right-2 p-1.5 rounded-full bg-white/50 backdrop-blur-sm"
+                                <div
+                                    key={post.id}
+                                    onClick={() => onSelectPost(post)}
+                                    className="break-inside-avoid relative rounded-lg overflow-hidden shadow-sm group cursor-pointer"
                                 >
-                                    <Heart className={`w-3 h-3 ${post.isLiked ? 'text-primary fill-primary' : 'text-slate-400'}`} />
-                                </button>
-                            </div>
+                                    <img src={post.imageUrl} className="w-full object-cover" alt="Inspiration" />
+                                    <div className="p-3 bg-white">
+                                        <div className="flex items-center gap-2">
+                                            <img src={post.author?.profile} className="w-5 h-5 rounded-full object-cover" alt={post.author?.name} />
+                                            <span className="text-[10px] font-medium opacity-70">@{post.author?.name}</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onLikePost(post.id);
+                                        }}
+                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-white/50 backdrop-blur-sm"
+                                    >
+                                        <Heart className={`w-3 h-3 ${post.isLiked ? 'text-primary fill-primary' : 'text-slate-400'}`} />
+                                    </button>
+                                </div>
                             ))}
                     </div>
                 </section>

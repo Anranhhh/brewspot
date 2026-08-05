@@ -3,6 +3,31 @@ import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Search, SlidersHorizontal, Navigation, Heart, MapPin, Star, ChevronLeft, RefreshCw } from 'lucide-react';
 import { Cafe, Screen } from '../types';
+import { Geolocation } from '@capacitor/geolocation';
+
+/**
+ * Retrieve current user position via Capacitor native Geolocation plugin with Web fallback.
+ */
+async function getCurrentUserPosition(): Promise<LatLng | null> {
+    try {
+        const position = await Geolocation.getCurrentPosition({ timeout: 5000, enableHighAccuracy: true });
+        return {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+        };
+    } catch {
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+            return new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                    () => resolve(null),
+                    { timeout: 5000 }
+                );
+            });
+        }
+        return null;
+    }
+}
 
 // Declare global window interfaces for TypeScript safety
 declare global {
@@ -160,25 +185,12 @@ export default function Explore({
 
     // Get user location on mount
     useEffect(() => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const coords = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    };
-                    setUserLocation(coords);
-                    setLocationAttempted(true);
-                },
-                (err) => {
-                    console.log('User denied location permissions or geolocation failed:', err);
-                    setLocationAttempted(true);
-                },
-                { timeout: 5000 }
-            );
-        } else {
+        getCurrentUserPosition().then((coords) => {
+            if (coords) {
+                setUserLocation(coords);
+            }
             setLocationAttempted(true);
-        }
+        });
     }, []);
 
     // Load Google Maps API SDK script
@@ -539,28 +551,21 @@ export default function Explore({
         };
     }, [map, userLocation]);
 
-    const handleRecenter = () => {
+    const handleRecenter = async () => {
         if (map) {
             if (userLocation) {
                 map.panTo(userLocation);
                 map.setZoom(15);
-            } else if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const coords = {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude,
-                        };
-                        setUserLocation(coords);
-                        map.panTo(coords);
-                        map.setZoom(15);
-                    },
-                    (err) => {
-                        console.error('Recenter geolocation failed:', err);
-                        map.panTo({ lat: 40.7465, lng: -74.0014 });
-                        map.setZoom(14);
-                    }
-                );
+            } else {
+                const coords = await getCurrentUserPosition();
+                if (coords) {
+                    setUserLocation(coords);
+                    map.panTo(coords);
+                    map.setZoom(15);
+                } else {
+                    map.panTo({ lat: 40.7465, lng: -74.0014 });
+                    map.setZoom(14);
+                }
             }
         }
     };

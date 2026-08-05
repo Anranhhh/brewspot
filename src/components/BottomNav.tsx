@@ -9,7 +9,7 @@ type BottomNavProps = {
 
 export default function BottomNav({ currentScreen, onNavigate }: BottomNavProps) {
     return (
-        <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 px-8 py-4 flex items-center justify-between z-50">
+        <nav className="absolute bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-slate-100 px-6 pt-3 safe-bottom-nav flex items-center justify-between z-50">
             <button
                 onClick={() => onNavigate('discovery')}
                 className={`flex flex-col items-center gap-1 ${currentScreen === 'discovery' ? 'text-primary' : 'text-slate-400'}`}

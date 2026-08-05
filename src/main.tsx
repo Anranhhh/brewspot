@@ -3,6 +3,17 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+import {StatusBar, Style} from '@capacitor/status-bar';
+import {SplashScreen} from '@capacitor/splash-screen';
+
+// Initialize Capacitor native overlays if running in native app environment
+try {
+  StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+  SplashScreen.hide().catch(() => {});
+} catch {
+  // Ignore in browser
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

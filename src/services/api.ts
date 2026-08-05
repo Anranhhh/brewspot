@@ -6,7 +6,36 @@
 
 import { Post, Cafe } from '../types';
 
-const API_BASE = '/api';
+/**
+ * Dynamically determine the API Base URL.
+ * Uses VITE_API_BASE_URL if explicitly defined in environment.
+ * Automatically falls back to http://localhost:5050/api or http://10.0.2.2:5050/api
+ * when running inside Capacitor native apps to avoid relative URL fetch errors in WebKit.
+ */
+function getApiBaseUrl(): string {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    const envUrl = import.meta.env.VITE_API_BASE_URL;
+    return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  }
+
+  // Detect if running inside Capacitor native app or custom scheme
+  const isNative = 
+    typeof window !== 'undefined' && 
+    (window.location.protocol === 'capacitor:' || 
+     window.location.protocol === 'file:' || 
+     Boolean((window as any).Capacitor?.isNativePlatform?.()));
+
+  if (isNative) {
+    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+    // 10.0.2.2 is Android emulator's alias to host machine localhost
+    // 127.0.0.1:5050 is iOS simulator's alias to host machine IPv4 loopback
+    return isAndroid ? 'http://10.0.2.2:5050/api' : 'http://127.0.0.1:5050/api';
+  }
+
+  return '/api';
+}
+
+const API_BASE = getApiBaseUrl();
 
 /**
  * Get the stored auth token from localStorage.
@@ -38,20 +67,27 @@ function authHeaders(): Record<string, string> {
  * @returns Parsed JSON response
  */
 async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${url}`, {
-    ...options,
-    headers: {
-      ...authHeaders(),
-      ...(options.headers || {}),
-    },
-  });
+  try {
+    const response = await fetch(`${API_BASE}${url}`, {
+      ...options,
+      headers: {
+        ...authHeaders(),
+        ...(options.headers || {}),
+      },
+    });
 
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.error || `API error: ${response.status}`);
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.error || `API error: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err instanceof Error && (err.message === 'Load failed' || err.message === 'Failed to fetch')) {
+      throw new Error(`Cannot connect to backend API server at ${API_BASE}. Please ensure the Flask server (npm run dev:api) is running.`);
+    }
+    throw err;
   }
-
-  return response.json();
 }
 
 // --- Auth ---
@@ -270,4 +306,31 @@ export async function getNotifications(): Promise<any[]> {
  */
 export async function getUserPosts(userId: string): Promise<Post[]> {
   return apiFetch<Post[]>(`/users/${userId}/posts`);
+}
+
+/**
+ * Fetch posts liked by the authenticated user.
+ * @param userId User UUID
+ * @returns Array of liked posts
+ */
+export async function getLikedPosts(userId: string): Promise<Post[]> {
+  return apiFetch<Post[]>(`/users/${userId}/liked-posts`);
+}
+
+/**
+ * Fetch posts saved by the authenticated user.
+ * @param userId User UUID
+ * @returns Array of saved posts
+ */
+export async function getSavedPosts(userId: string): Promise<Post[]> {
+  return apiFetch<Post[]>(`/users/${userId}/saved-posts`);
+}
+
+/**
+ * Fetch cafes saved by the authenticated user.
+ * @param userId User UUID
+ * @returns Array of saved cafes
+ */
+export async function getSavedCafes(userId: string): Promise<Cafe[]> {
+  return apiFetch<Cafe[]>(`/users/${userId}/saved-cafes`);
 }

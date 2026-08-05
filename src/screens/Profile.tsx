@@ -99,38 +99,42 @@ export default function ProfileScreen({ currentUser, posts, userPosts, cafes, ac
                 </button>
             </div>
 
-            <div className="flex px-4 border-b border-slate-100 overflow-x-auto no-scrollbar">
+            <div className="grid grid-cols-4 w-full border-b border-slate-100 px-2 bg-white">
                 <button
                     onClick={() => setActiveTab('posts')}
-                    className={`flex-1 min-w-fit px-4 py-4 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${activeTab === 'posts' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
-                        }`}
+                    className={`py-3.5 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1 transition-all ${
+                        activeTab === 'posts' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
+                    }`}
                 >
-                    <Grid className="w-3.5 h-3.5" />
-                    My Posts
+                    <Grid className="w-3.5 h-3.5 shrink-0" />
+                    <span>Posts</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('liked')}
-                    className={`flex-1 min-w-fit px-4 py-4 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${activeTab === 'liked' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
-                        }`}
+                    className={`py-3.5 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1 transition-all ${
+                        activeTab === 'liked' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
+                    }`}
                 >
-                    <Heart className="w-3.5 h-3.5" />
-                    Liked
+                    <Heart className="w-3.5 h-3.5 shrink-0" />
+                    <span>Liked</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('saved')}
-                    className={`flex-1 min-w-fit px-4 py-4 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${activeTab === 'saved' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
-                        }`}
+                    className={`py-3.5 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1 transition-all ${
+                        activeTab === 'saved' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
+                    }`}
                 >
-                    <Bookmark className="w-3.5 h-3.5" />
-                    Saved
+                    <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                    <span>Saved</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('shops')}
-                    className={`flex-1 min-w-fit px-4 py-4 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${activeTab === 'shops' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
-                        }`}
+                    className={`py-3.5 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1 transition-all ${
+                        activeTab === 'shops' ? 'border-primary text-primary' : 'border-transparent text-slate-400'
+                    }`}
                 >
-                    <MapPin className="w-3.5 h-3.5" />
-                    Shops
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    <span>Shops</span>
                 </button>
             </div>
 

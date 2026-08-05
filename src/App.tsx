@@ -180,8 +180,8 @@ export default function App() {
   };
 
   return (
-    <div className="flex justify-center min-h-screen bg-slate-100">
-      <div className="w-full max-w-[430px] bg-white shadow-2xl relative overflow-hidden flex flex-col min-h-screen">
+    <div className="flex justify-center h-screen h-[100dvh] bg-slate-100 overflow-hidden">
+      <div className="w-full max-w-[430px] bg-white shadow-2xl relative overflow-hidden flex flex-col h-full">
         <AnimatePresence mode="wait">
           {currentScreen === 'login' && (
             <Login

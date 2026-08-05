@@ -65,6 +65,52 @@ def get_user_posts(user_id: str, current_user_id: str | None = None) -> list[dic
     ]
 
 
+def get_liked_posts(user_id: str) -> list[dict]:
+    """
+    Get all posts liked by a user.
+    @param user_id User UUID
+    @returns liked posts formatted for the frontend
+    """
+    liked_ids = set(post_repository.get_liked_post_ids(user_id))
+    posts = post_repository.get_posts_by_ids(list(liked_ids))
+    post_ids = [p["id"] for p in posts]
+    stats_map = post_repository.get_bulk_post_stats(post_ids)
+    saved_ids = set(post_repository.get_saved_post_ids(user_id))
+
+    return [
+        _format_post(
+            post,
+            stats_map.get(post["id"], {}),
+            post["id"] in liked_ids,
+            post["id"] in saved_ids,
+        )
+        for post in posts
+    ]
+
+
+def get_saved_posts(user_id: str) -> list[dict]:
+    """
+    Get all posts saved by a user.
+    @param user_id User UUID
+    @returns saved posts formatted for the frontend
+    """
+    saved_ids = set(post_repository.get_saved_post_ids(user_id))
+    posts = post_repository.get_posts_by_ids(list(saved_ids))
+    post_ids = [p["id"] for p in posts]
+    stats_map = post_repository.get_bulk_post_stats(post_ids)
+    liked_ids = set(post_repository.get_liked_post_ids(user_id))
+
+    return [
+        _format_post(
+            post,
+            stats_map.get(post["id"], {}),
+            post["id"] in liked_ids,
+            post["id"] in saved_ids,
+        )
+        for post in posts
+    ]
+
+
 def get_post_detail(post_id: str, user_id: str | None = None) -> dict | None:
     """
     Get a single post with full stats and interaction state.

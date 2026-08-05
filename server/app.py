@@ -26,8 +26,8 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
 
-    # NOTE: Allow requests from the Vite dev server on port 3000
-    CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
+    # Enable CORS for Capacitor mobile apps (capacitor://localhost, http://localhost) and dev servers
+    CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
     # Register API blueprints
     from server.api.auth_api import auth_bp

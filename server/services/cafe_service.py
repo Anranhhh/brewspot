@@ -22,6 +22,17 @@ def get_cafes(user_id: str | None = None) -> list[dict]:
     return [_format_cafe(cafe, cafe["id"] in saved_ids) for cafe in cafes]
 
 
+def get_saved_cafes(user_id: str) -> list[dict]:
+    """
+    Get all cafes saved by a user.
+    @param user_id User UUID
+    @returns saved cafes formatted for the frontend
+    """
+    saved_ids = set(cafe_repository.get_saved_cafe_ids(user_id))
+    cafes = cafe_repository.get_cafes_by_ids(list(saved_ids))
+    return [_format_cafe(cafe, cafe["id"] in saved_ids) for cafe in cafes]
+
+
 import uuid
 
 def _resolve_uuid(id_str: str) -> str:
