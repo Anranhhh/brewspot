@@ -1,7 +1,8 @@
 import { Bookmark, ChevronLeft, Grid, Heart, MapPin, Plus, Settings, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Cafe, Post, ProfileTab, Screen } from '../types';
+import * as api from '../services/api';
 
 type ProfileScreenProps = {
     currentUser: { id: string; name: string; profile: string | null } | null;
@@ -18,6 +19,21 @@ type ProfileScreenProps = {
 
 export default function ProfileScreen({ currentUser, posts, userPosts, cafes, activeTab, setActiveTab, onNavigate, onSelectPost, onSelectCafe, onLogout }: ProfileScreenProps) {
     const [showSettings, setShowSettings] = useState(false);
+    const [followersCount, setFollowersCount] = useState(0);
+    const [followingCount, setFollowingCount] = useState(0);
+
+    useEffect(() => {
+        if (!currentUser?.id) return;
+        api.getUserProfile(currentUser.id)
+            .then((data) => {
+                if (data) {
+                    setFollowersCount(data.followersCount || 0);
+                    setFollowingCount(data.followingCount || 0);
+                }
+            })
+            .catch(() => {});
+    }, [currentUser]);
+
     const likedPosts = posts.filter(p => p.isLiked);
     const savedPosts = posts.filter(p => p.isSaved);
     const savedCafes = cafes.filter(c => c.isSaved);
@@ -85,12 +101,12 @@ export default function ProfileScreen({ currentUser, posts, userPosts, cafes, ac
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Posts</span>
                     </div>
                     <div className="text-center">
-                        <span className="block font-bold text-lg">0</span>
+                        <span className="block font-bold text-lg">{followersCount}</span>
                         <span className="text-xs text-slate-400 uppercase tracking-wider">Followers</span>
                     </div>
                     <div className="text-center">
-                        <span className="block font-bold text-lg">{userPosts.reduce((sum, post) => sum + (post.likes || 0), 0)}</span>
-                        <span className="text-xs text-slate-400 uppercase tracking-wider">Likes</span>
+                        <span className="block font-bold text-lg">{followingCount}</span>
+                        <span className="text-xs text-slate-400 uppercase tracking-wider">Following</span>
                     </div>
                 </div>
 

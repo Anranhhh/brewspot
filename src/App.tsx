@@ -16,7 +16,9 @@ import Explore from './screens/Explore';
 import CafeDetails from './screens/CafeDetails';
 import PostDetails from './screens/PostDetails';
 import Profile from './screens/Profile';
+import UserProfile from './screens/UserProfile';
 import Messages from './screens/Messages';
+import ChatWindow from './screens/ChatWindow';
 import NewPost from './screens/NewPost';
 import Success from './screens/Success';
 
@@ -83,10 +85,50 @@ export default function App() {
     }
   }, [currentScreen, fetchFeedData, fetchUserPosts]);
 
-  const navigateTo = (screen: Screen, data: Cafe | Post | null = null, tab?: any) => {
+  const [selectedUser, setSelectedUser] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [exploreSearchQuery, setExploreSearchQuery] = useState<string>('');
+  const [messageRecipient, setMessageRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [chatRecipient, setChatRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  const navigateTo = (screen: Screen, data: any = null, tab?: any) => {
+    if (screen !== 'messages') {
+      setIsChatOpen(false);
+    }
+
     if (screen === 'cafe-details') setSelectedCafe(data as Cafe);
     if (screen === 'post-details') setSelectedPost(data as Post);
     if (screen === 'profile' && tab) setProfileTab(tab);
+    if (screen === 'user-profile') {
+      if (data && currentUser && (data.id === currentUser.id || data.name === currentUser.name)) {
+        setCurrentScreen('profile');
+        return;
+      }
+      setSelectedUser(data);
+    }
+    if (screen === 'chat-window') {
+      if (data && typeof data === 'object') {
+        setChatRecipient(data.recipient || data);
+      }
+    }
+    if (screen === 'messages') {
+      if (data && typeof data === 'object' && 'recipient' in data) {
+        setMessageRecipient(data.recipient);
+      } else if (data && typeof data === 'object' && 'name' in data) {
+        setMessageRecipient(data);
+      } else {
+        setMessageRecipient(null);
+      }
+    }
+    if (screen === 'explore') {
+      if (data && typeof data === 'object' && 'query' in data) {
+        setExploreSearchQuery(data.query);
+      } else if (typeof data === 'string') {
+        setExploreSearchQuery(data);
+      } else {
+        setExploreSearchQuery('');
+      }
+    }
 
     if (screen === 'post-details' || screen === 'cafe-details') {
       setPreviousScreen(currentScreen);
@@ -227,9 +269,15 @@ export default function App() {
           {currentScreen === 'post-details' && selectedPost && (
             <PostDetails
               post={selectedPost}
+              currentUser={currentUser}
               onBack={handleBack}
               onLike={handleLike}
               onSave={handleSave}
+              onDeletePost={(deletedPostId) => {
+                setPosts((prev) => prev.filter((p) => p.id !== deletedPostId));
+                setUserPosts((prev) => prev.filter((p) => p.id !== deletedPostId));
+                void fetchFeedData();
+              }}
             />
           )}
 
@@ -249,12 +297,27 @@ export default function App() {
           )}
 
           {currentScreen === 'messages' && (
-            <Messages onBack={() => navigateTo('discovery')} currentUser={currentUser} />
+            <Messages
+              onBack={() => navigateTo('discovery')}
+              currentUser={currentUser}
+              initialRecipient={messageRecipient}
+              onChatOpenChange={setIsChatOpen}
+              onSelectChat={(targetUser) => navigateTo('chat-window', targetUser)}
+            />
+          )}
+
+          {currentScreen === 'chat-window' && (
+            <ChatWindow
+              recipient={chatRecipient}
+              currentUser={currentUser}
+              onBack={() => navigateTo('messages')}
+            />
           )}
 
           {currentScreen === 'explore' && (
             <Explore
               cafes={cafes}
+              initialQuery={exploreSearchQuery}
               isLoading={isLoadingFeed}
               feedError={feedError}
               onRetryFeed={() => void fetchFeedData()}
@@ -264,15 +327,31 @@ export default function App() {
             />
           )}
 
+          {currentScreen === 'user-profile' && (
+            <UserProfile
+              user={selectedUser}
+              currentUser={currentUser}
+              allPosts={posts}
+              onNavigate={navigateTo}
+              onSelectPost={(post) => navigateTo('post-details', post)}
+            />
+          )}
+
           {currentScreen === 'new-post' && (
-            <NewPost onClose={() => navigateTo('discovery')} />
+            <NewPost
+              onClose={() => navigateTo('discovery')}
+              onPostCreated={() => void fetchFeedData()}
+            />
           )}
         </AnimatePresence>
 
         {currentScreen !== 'login' &&
           currentScreen !== 'register' &&
           currentScreen !== 'success' &&
-          currentScreen !== 'new-post' && (
+          currentScreen !== 'new-post' &&
+          currentScreen !== 'user-profile' &&
+          currentScreen !== 'chat-window' &&
+          !(currentScreen === 'messages' && isChatOpen) && (
             <BottomNav
               currentScreen={currentScreen}
               onNavigate={navigateTo}

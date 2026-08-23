@@ -153,6 +153,37 @@ def create_post(
     return _format_post(post, stats, False, False)
 
 
+def delete_post(user_id: str, post_id: str) -> dict:
+    """
+    Delete a post owned by user_id.
+    Validates that user_id is the author of the post (by UUID or profile name).
+    """
+    post = post_repository.get_post_by_id(post_id)
+    if not post:
+        raise ValueError("Post not found")
+
+    post_author_id = post.get("user_id")
+
+    current_user = user_repository.get_user_by_id(user_id)
+    author_user = user_repository.get_user_by_id(post_author_id) if post_author_id else None
+
+    is_author = False
+    if post_author_id == user_id:
+        is_author = True
+    elif current_user and author_user and (current_user.get("name") == author_user.get("name") or current_user.get("id") == author_user.get("id")):
+        is_author = True
+    elif current_user and post.get("author") and isinstance(post.get("author"), dict) and current_user.get("name") == post.get("author", {}).get("name"):
+        is_author = True
+    elif not post_author_id:
+        is_author = True
+
+    if not is_author:
+        raise PermissionError("You are not authorized to delete this post")
+
+    success = post_repository.delete_post(post_id)
+    return {"success": success, "message": "Post deleted successfully"}
+
+
 def toggle_like(user_id: str, post_id: str) -> dict:
     """
     Toggle like on a post.
@@ -207,15 +238,19 @@ def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dic
     Transform DB post + stats into frontend camelCase format.
     """
     author = post.get("users")
+    if not author and post.get("user_id"):
+        author = user_repository.get_user_by_id(post["user_id"])
+
     timestamp = _relative_time(post.get("created_at"))
 
     return {
         "id": post["id"],
         "imageUrl": post.get("image_url", ""),
         "author": {
-            "name": author.get("name", "unknown") if author else "unknown",
-            "profile": (author.get("profile") or author.get("avatar") or "") if author else "",
-        } if author else None,
+            "id": (author.get("id") if author else None) or post.get("user_id"),
+            "name": author.get("name", "Coffee Enthusiast") if author else "Coffee Enthusiast",
+            "profile": (author.get("profile") or author.get("avatar") or "") if author else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+        },
         "location": post.get("location"),
         "rating": float(post["rating"]) if post.get("rating") else None,
         "likes": stats.get("likes_count", 0),

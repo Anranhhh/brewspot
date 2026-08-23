@@ -73,3 +73,73 @@ def get_all_users() -> list[dict]:
     client = get_supabase_client()
     response = client.table("users").select("*").execute()
     return response.data
+
+
+def find_user(identifier: str) -> dict | None:
+    """Find a user by UUID or display name."""
+    if not identifier:
+        return None
+    client = get_supabase_client()
+    try:
+        res = client.table("users").select("*").eq("id", identifier).execute()
+        if res.data:
+            return res.data[0]
+    except Exception:
+        pass
+
+    try:
+        res = client.table("users").select("*").ilike("name", identifier).execute()
+        if res.data:
+            return res.data[0]
+    except Exception:
+        pass
+    return None
+
+
+def is_user_following(follower_id: str, target_id: str) -> bool:
+    """Check if follower_id follows target_id permanently in Supabase."""
+    client = get_supabase_client()
+    try:
+        res = client.table("notifications").select("id").eq("user_id", target_id).eq("actor_id", follower_id).eq("action", "follow").execute()
+        return len(res.data) > 0
+    except Exception:
+        return False
+
+
+def count_user_followers(target_id: str) -> int:
+    """Count real followers for target_id permanently from Supabase."""
+    client = get_supabase_client()
+    try:
+        res = client.table("notifications").select("id", count="exact").eq("user_id", target_id).eq("action", "follow").execute()
+        return res.count if res.count is not None else len(res.data)
+    except Exception:
+        return 0
+
+
+def count_user_following(follower_id: str) -> int:
+    """Count real following for follower_id permanently from Supabase."""
+    client = get_supabase_client()
+    try:
+        res = client.table("notifications").select("id", count="exact").eq("actor_id", follower_id).eq("action", "follow").execute()
+        return res.count if res.count is not None else len(res.data)
+    except Exception:
+        return 0
+
+
+def follow_user_db(follower_id: str, target_id: str) -> bool:
+    """Toggle follow in Supabase notifications table. Returns new is_following state."""
+    client = get_supabase_client()
+    currently_following = is_user_following(follower_id, target_id)
+    if currently_following:
+        client.table("notifications").delete().eq("user_id", target_id).eq("actor_id", follower_id).eq("action", "follow").execute()
+        return False
+    else:
+        payload = {
+            "user_id": target_id,
+            "actor_id": follower_id,
+            "action": "follow",
+            "text": "started following you",
+            "system": False
+        }
+        client.table("notifications").insert(payload).execute()
+        return True

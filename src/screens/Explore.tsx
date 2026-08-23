@@ -38,6 +38,7 @@ declare global {
 
 type ExploreScreenProps = {
     cafes: Cafe[]; // Saved/loaded cafes from the backend database
+    initialQuery?: string;
     onSelectCafe: (cafe: Cafe) => void;
     onNavigate: (s: Screen, data?: any) => void;
     isLoading?: boolean;
@@ -140,6 +141,7 @@ const getCafeCoords = (cafe: Cafe): LatLng => {
  */
 export default function Explore({
     cafes,
+    initialQuery = '',
     onSelectCafe,
     onNavigate,
     isLoading = false,
@@ -165,7 +167,13 @@ export default function Explore({
     const [locationAttempted, setLocationAttempted] = useState(false);
 
     const selectedCafe = googleCafes.find((c) => c.id === selectedId) ?? googleCafes[0];
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(initialQuery);
+
+    useEffect(() => {
+        if (initialQuery) {
+            setSearchQuery(initialQuery);
+        }
+    }, [initialQuery]);
 
     // Sync selected id logic when places change
     useEffect(() => {
@@ -317,6 +325,16 @@ export default function Explore({
             setIsSearchingPlaces(false);
 
             if (results && results.length > 0) {
+                // Auto-center map on first text search result (e.g. San Jose or specific cafe)
+                if (textQuery && results[0]?.location) {
+                    const firstLat = typeof results[0].location.lat === 'function' ? results[0].location.lat() : results[0].location.lat;
+                    const firstLng = typeof results[0].location.lng === 'function' ? results[0].location.lng() : results[0].location.lng;
+                    if (firstLat && firstLng) {
+                        currentMap.panTo({ lat: firstLat, lng: firstLng });
+                        currentMap.setZoom(14);
+                    }
+                }
+
                 const mappedCafes: Cafe[] = [];
                 for (const result of results) {
                     const placeId = result.id;

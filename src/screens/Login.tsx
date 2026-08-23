@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-
-import {
-    Rocket,
-} from "lucide-react";
+import { Rocket, Eye, EyeOff } from 'lucide-react';
 
 type LoginScreenProps = {
     onLogin: (email: string, pass: string) => Promise<void>;
@@ -13,6 +10,7 @@ type LoginScreenProps = {
 export default function Login({ onLogin, onGoToRegister }: LoginScreenProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -71,15 +69,25 @@ export default function Login({ onLogin, onGoToRegister }: LoginScreenProps) {
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={isLoading}
                     />
-                    <input
-                        className="w-full h-14 bg-white/60 backdrop-blur-sm border border-slate-200 rounded-full px-6 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/30 transition-all outline-none"
-                        placeholder="Password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={isLoading}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                    />
+                    <div className="relative w-full">
+                        <input
+                            className="w-full h-14 bg-white/60 backdrop-blur-sm border border-slate-200 rounded-full pl-6 pr-12 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+                            placeholder="Password"
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            disabled={isLoading}
+                            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 transition-colors"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                        </button>
+                    </div>
                 </div>
 
                 <button

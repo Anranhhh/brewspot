@@ -1,6 +1,7 @@
-export type Screen = 'login' | 'register' | 'discovery' | 'cafe-details' | 'profile' | 'new-post' | 'messages' | 'post-details' | 'explore' | 'success';
+export type Screen = 'login' | 'register' | 'discovery' | 'cafe-details' | 'profile' | 'user-profile' | 'new-post' | 'messages' | 'chat-window' | 'post-details' | 'explore' | 'success';
 
 export interface Author {
+  id?: string;
   name: string;
   profile: string;
 }

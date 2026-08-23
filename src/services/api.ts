@@ -224,6 +224,17 @@ export async function createPost(data: {
 }
 
 /**
+ * Delete a post by ID. Requires post ownership.
+ * @param postId Post UUID
+ * @returns { success: boolean, message: string }
+ */
+export async function deletePost(postId: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/posts/${postId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
  * Toggle like on a post.
  * @param postId Post UUID
  * @returns { isLiked: boolean, likes: number }
@@ -279,8 +290,19 @@ export async function addComment(postId: string, text: string): Promise<CommentR
  * @param userId User UUID
  * @returns User profile object
  */
-export async function getUserProfile(userId: string): Promise<{ id: string; name: string; profile: string | null }> {
-  return apiFetch(`/users/${userId}`);
+export async function getUserProfile(userId: string): Promise<any> {
+  return apiFetch(`/users/${encodeURIComponent(userId)}`);
+}
+
+/**
+ * Toggle follow status for a target user.
+ * @param userId Target user ID
+ * @returns Updated follow status and count
+ */
+export async function toggleFollowUser(userId: string): Promise<{ userId: string; isFollowing: boolean; followersCount: number }> {
+  return apiFetch<{ userId: string; isFollowing: boolean; followersCount: number }>(`/users/${encodeURIComponent(userId)}/follow`, {
+    method: 'POST',
+  });
 }
 
 // --- Messages ---
@@ -290,6 +312,28 @@ export async function getUserProfile(userId: string): Promise<{ id: string; name
  */
 export async function getDirectMessages(): Promise<any[]> {
   return apiFetch('/messages');
+}
+
+/**
+ * Fetch conversation history with a specific target user.
+ * @param otherUserId Target user UUID or ID
+ * @returns Array of message objects
+ */
+export async function getConversation(otherUserId: string): Promise<any[]> {
+  return apiFetch<any[]>(`/messages/conversation/${otherUserId}`);
+}
+
+/**
+ * Send a direct message to a recipient.
+ * @param receiverId Recipient user UUID or ID
+ * @param text Message content text
+ * @returns Created message object
+ */
+export async function sendDirectMessage(receiverId: string, text: string): Promise<any> {
+  return apiFetch<any>('/messages', {
+    method: 'POST',
+    body: JSON.stringify({ receiver_id: receiverId, text: text }),
+  });
 }
 
 /**

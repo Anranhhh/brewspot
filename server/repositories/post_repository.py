@@ -108,6 +108,24 @@ def create_post(
     return response.data[0]
 
 
+def delete_post(post_id: str) -> bool:
+    """
+    Delete a post and its associated likes, saves, and comments from Supabase DB.
+    @param post_id Post UUID
+    @returns True if deleted successfully
+    """
+    client = get_supabase_client()
+    try:
+        client.table("post_likes").delete().eq("post_id", post_id).execute()
+        client.table("post_saves").delete().eq("post_id", post_id).execute()
+        client.table("comments").delete().eq("post_id", post_id).execute()
+    except Exception as e:
+        logger.warning(f"Error cleaning up post associations for {post_id}: {e}")
+
+    client.table("posts").delete().eq("id", post_id).execute()
+    return True
+
+
 # --- Post Stats ---
 
 def get_post_stats(post_id: str) -> dict:
