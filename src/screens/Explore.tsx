@@ -203,7 +203,11 @@ export default function Explore({
 
     // Load Google Maps API SDK script
     useEffect(() => {
-        const apiKey = 'AIzaSyDvOmhm78lB44SyVUV_LKRuJfdZk4Z5TtM';
+        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+        if (!apiKey) {
+            console.warn('VITE_GOOGLE_MAPS_API_KEY is not defined in .env');
+            return;
+        }
         loadGoogleMapsScript(apiKey)
             .then(() => {
                 setMapsLoaded(true);
