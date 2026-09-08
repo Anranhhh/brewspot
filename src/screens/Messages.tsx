@@ -9,9 +9,10 @@ type MessagesScreenProps = {
     initialRecipient?: { id?: string; name: string; profile?: string | null } | null;
     onChatOpenChange?: (isOpen: boolean) => void;
     onSelectChat?: (user: { id?: string; name: string; profile?: string | null }) => void;
+    onSelectNotificationPost?: (postId: string, commentId?: string) => void;
 };
 
-export default function Messages({ onBack, currentUser, initialRecipient, onChatOpenChange, onSelectChat }: MessagesScreenProps) {
+export default function Messages({ onBack, currentUser, initialRecipient, onChatOpenChange, onSelectChat, onSelectNotificationPost }: MessagesScreenProps) {
     const [activeTab, setActiveTab] = useState<'chats' | 'notifications'>('chats');
     const [messages, setMessages] = useState<any[]>([]);
     const [notifications, setNotifications] = useState<any[]>([]);
@@ -360,33 +361,59 @@ export default function Messages({ onBack, currentUser, initialRecipient, onChat
                                         <p className="text-sm text-center opacity-60 py-6">No notifications yet.</p>
                                     ) : null}
 
-                                    {notifications.map(notif => (
-                                        <div key={notif.id} className="flex items-center gap-4 cursor-pointer group">
-                                            {notif.system ? (
-                                                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                                    <Bell className="w-6 h-6" />
-                                                </div>
-                                            ) : (
-                                                <div className={`w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center border-2 border-primary/10 overflow-hidden shrink-0`}>
-                                                    <img src={notif.actor?.profile || 'https://i.pravatar.cc/150'} className="w-full h-full object-cover" alt="Profile" />
-                                                </div>
-                                            )}
-                                            <div className="flex-1 border-b border-slate-50 pb-4 group-last:border-none">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <div className="text-sm">
-                                                        {notif.system ? (
-                                                            <p className="text-slate-600 leading-snug">{notif.action || notif.text}</p>
-                                                        ) : (
-                                                            <p className="text-slate-600 leading-snug">
-                                                                <span className="font-bold text-slate-800">@{notif.actor?.name || 'user'}</span> {notif.action} {notif.target && <span className="font-medium text-primary">"{notif.target}"</span>}
-                                                            </p>
-                                                        )}
+                                    {notifications.map(notif => {
+                                        const hasTarget = Boolean(notif.target);
+                                        return (
+                                            <div
+                                                key={notif.id}
+                                                onClick={() => {
+                                                    if (hasTarget && onSelectNotificationPost) {
+                                                        let postId = notif.target;
+                                                        let commentId: string | undefined = undefined;
+                                                        if (typeof notif.target === 'string' && notif.target.includes(':')) {
+                                                            const parts = notif.target.split(':');
+                                                            postId = parts[0];
+                                                            commentId = parts[1];
+                                                        }
+                                                        onSelectNotificationPost(postId, commentId);
+                                                    }
+                                                }}
+                                                className={`flex items-center gap-4 group p-2 rounded-2xl transition-colors ${hasTarget ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+                                            >
+                                                {notif.system ? (
+                                                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                        <Bell className="w-5 h-5" />
                                                     </div>
-                                                    <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">{formatTime(notif.created_at)}</span>
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center border-2 border-primary/10 overflow-hidden shrink-0">
+                                                        <img src={notif.actor?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'} className="w-full h-full object-cover" alt="Profile" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 border-b border-slate-100 pb-3 group-last:border-none">
+                                                    <div className="flex justify-between items-start mb-0.5">
+                                                        <div className="text-xs">
+                                                            {notif.system ? (
+                                                                <p className="text-slate-700 leading-snug">{notif.action || notif.text}</p>
+                                                            ) : (
+                                                                <div>
+                                                                    <p className="text-slate-700 leading-snug">
+                                                                        <span className="font-bold text-slate-900">@{notif.actor?.name || 'user'}</span>{' '}
+                                                                        <span>{notif.action}</span>
+                                                                    </p>
+                                                                    {notif.text && (
+                                                                        <p className="text-[11px] text-slate-500 italic mt-0.5 font-normal line-clamp-1">
+                                                                            "{notif.text}"
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">{formatTime(notif.created_at)}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

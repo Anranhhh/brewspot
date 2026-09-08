@@ -19,7 +19,11 @@ def get_cafes(user_id: str | None = None) -> list[dict]:
     if user_id:
         saved_ids = set(cafe_repository.get_saved_cafe_ids(user_id))
 
-    return [_format_cafe(cafe, cafe["id"] in saved_ids) for cafe in cafes]
+    def _is_saved(c: dict) -> bool:
+        cid = c["id"]
+        return cid in saved_ids or _resolve_uuid(cid) in saved_ids
+
+    return [_format_cafe(cafe, _is_saved(cafe)) for cafe in cafes]
 
 
 def get_saved_cafes(user_id: str) -> list[dict]:
@@ -29,8 +33,14 @@ def get_saved_cafes(user_id: str) -> list[dict]:
     @returns saved cafes formatted for the frontend
     """
     saved_ids = set(cafe_repository.get_saved_cafe_ids(user_id))
-    cafes = cafe_repository.get_cafes_by_ids(list(saved_ids))
-    return [_format_cafe(cafe, cafe["id"] in saved_ids) for cafe in cafes]
+    all_cafes = cafe_repository.get_all_cafes()
+    saved_set = set(saved_ids)
+
+    saved_cafes = [
+        c for c in all_cafes
+        if c["id"] in saved_set or _resolve_uuid(c["id"]) in saved_set
+    ]
+    return [_format_cafe(cafe, True) for cafe in saved_cafes]
 
 
 import uuid

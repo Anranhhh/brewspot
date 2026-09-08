@@ -21,20 +21,7 @@ def _get_user_from_request():
         u = auth_service.get_current_user(token)
         if u:
             return u
-
-    # Fallback user if token is expired or missing in dev/demo mode
-    try:
-        users = user_repository.get_all_users()
-        if users:
-            return users[0]
-    except Exception:
-        pass
-
-    return {
-        "id": "730fb366-1f2e-4d3f-8b7f-4aef3ffb596f",
-        "name": "Bob Barista",
-        "profile": "https://runppvhclespkgdlxyww.supabase.co/storage/v1/object/public/avatars/1.jpg"
-    }
+    return None
 
 
 @messages_bp.route("/notifications", methods=["GET"])

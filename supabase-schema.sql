@@ -64,11 +64,12 @@ CREATE TABLE public.cafe_saves (
   PRIMARY KEY (user_id, cafe_id)
 );
 
--- 7. Comments Table (Optional, added to support 'comments' count on Posts)
+-- 7. Comments Table (Added parent_id for threaded comment replies)
 CREATE TABLE public.comments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  parent_id UUID REFERENCES public.comments(id) ON DELETE CASCADE,
   text TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

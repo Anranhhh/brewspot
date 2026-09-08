@@ -32,6 +32,7 @@ export default function App() {
   const [previousScreen, setPreviousScreen] = useState<Screen | null>(null);
   const [profileTab, setProfileTab] = useState<'posts' | 'liked' | 'saved' | 'shops'>('posts');
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; profile: string | null } | null>(null);
+  const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
 
@@ -95,6 +96,9 @@ export default function App() {
     if (screen !== 'messages') {
       setIsChatOpen(false);
     }
+    if (screen !== 'post-details') {
+      setHighlightCommentId(null);
+    }
 
     if (screen === 'cafe-details') setSelectedCafe(data as Cafe);
     if (screen === 'post-details') setSelectedPost(data as Post);
@@ -135,6 +139,23 @@ export default function App() {
     }
 
     setCurrentScreen(screen);
+  };
+
+  const handleSelectNotificationPost = async (postId: string, commentId?: string) => {
+    let targetPost = posts.find((p) => p.id === postId) || userPosts.find((p) => p.id === postId);
+    if (!targetPost) {
+      try {
+        targetPost = await api.getPostById(postId);
+      } catch (err) {
+        console.error('Failed to fetch notification post:', err);
+      }
+    }
+    if (targetPost) {
+      setSelectedPost(targetPost);
+      setHighlightCommentId(commentId || null);
+      setPreviousScreen(currentScreen);
+      setCurrentScreen('post-details');
+    }
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -270,6 +291,7 @@ export default function App() {
             <PostDetails
               post={selectedPost}
               currentUser={currentUser}
+              highlightCommentId={highlightCommentId}
               onBack={handleBack}
               onLike={handleLike}
               onSave={handleSave}
@@ -303,6 +325,7 @@ export default function App() {
               initialRecipient={messageRecipient}
               onChatOpenChange={setIsChatOpen}
               onSelectChat={(targetUser) => navigateTo('chat-window', targetUser)}
+              onSelectNotificationPost={handleSelectNotificationPost}
             />
           )}
 

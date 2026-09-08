@@ -295,18 +295,79 @@ def get_comments_for_post(post_id: str) -> list[dict]:
     return response.data
 
 
-def create_comment(post_id: str, user_id: str, text: str) -> dict:
+def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None = None) -> dict:
     """
     Insert a new comment on a post.
     @param post_id Post UUID
     @param user_id Commenter UUID
     @param text Comment text
-    @returns created comment dict
+    @param parent_id Optional parent comment UUID for replies
+    @returns created comment dict with author info
+    """
+    client = get_supabase_client()
+    payload = {"post_id": post_id, "user_id": user_id, "text": text}
+    if parent_id:
+        payload["parent_id"] = parent_id
+
+    try:
+        response = (
+            client.table("comments")
+            .insert(payload)
+            .execute()
+        )
+    except Exception as e:
+        if parent_id and "parent_id" in str(e):
+            payload.pop("parent_id", None)
+            response = (
+                client.table("comments")
+                .insert(payload)
+                .execute()
+            )
+        else:
+            raise e
+
+    inserted = response.data[0]
+    comment_id = inserted.get("id")
+    if comment_id:
+        try:
+            res = (
+                client.table("comments")
+                .select("*, users!comments_user_id_fkey(id, name, profile)")
+                .eq("id", comment_id)
+                .execute()
+            )
+            if res.data:
+                return res.data[0]
+        except Exception:
+            pass
+
+    return inserted
+
+
+def get_comment_by_id(comment_id: str) -> dict | None:
+    """
+    Fetch a single comment by UUID, including author info.
+    @param comment_id Comment UUID
+    @returns comment dict or None
     """
     client = get_supabase_client()
     response = (
         client.table("comments")
-        .insert({"post_id": post_id, "user_id": user_id, "text": text})
+        .select("*, users!comments_user_id_fkey(id, name, profile)")
+        .eq("id", comment_id)
         .execute()
     )
-    return response.data[0]
+    if response.data:
+        return response.data[0]
+    return None
+
+
+def delete_comment_by_id(comment_id: str) -> bool:
+    """
+    Delete a comment from the comments table.
+    @param comment_id Comment UUID
+    @returns True if deleted
+    """
+    client = get_supabase_client()
+    client.table("comments").delete().eq("id", comment_id).execute()
+    return True

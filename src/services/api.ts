@@ -254,11 +254,16 @@ export async function toggleSavePost(postId: string): Promise<{ isSaved: boolean
 
 // --- Comments ---
 
-interface CommentResponse {
+export interface CommentResponse {
   id: string;
+  post_id?: string;
+  user_id?: string;
+  parent_id?: string | null;
+  parentId?: string | null;
   text: string;
-  author: { name: string; profile: string };
+  author: { id?: string; name: string; profile: string };
   timestamp: string;
+  created_at?: string;
 }
 
 /**
@@ -274,12 +279,24 @@ export async function getComments(postId: string): Promise<CommentResponse[]> {
  * Add a comment to a post.
  * @param postId Post UUID
  * @param text Comment text
+ * @param parentId Optional parent comment ID for replies
  * @returns Created comment object
  */
-export async function addComment(postId: string, text: string): Promise<CommentResponse> {
+export async function addComment(postId: string, text: string, parentId?: string): Promise<CommentResponse> {
   return apiFetch<CommentResponse>(`/posts/${postId}/comments`, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, parent_id: parentId || null }),
+  });
+}
+
+/**
+ * Delete a comment by ID. Requires comment ownership.
+ * @param commentId Comment UUID
+ * @returns { success: boolean, message: string }
+ */
+export async function deleteComment(commentId: string): Promise<{ success: boolean; message: string }> {
+  return apiFetch<{ success: boolean; message: string }>(`/posts/comments/${commentId}`, {
+    method: 'DELETE',
   });
 }
 

@@ -4,7 +4,7 @@ Post service — business logic for posts, likes, saves, and comments.
 
 import logging
 from datetime import datetime, timezone
-from server.repositories import post_repository, user_repository
+from server.repositories import post_repository, user_repository, message_repository
 
 logger = logging.getLogger(__name__)
 
@@ -218,19 +218,69 @@ def get_comments(post_id: str) -> list[dict]:
     return [_format_comment(c) for c in comments]
 
 
-def add_comment(post_id: str, user_id: str, text: str) -> dict:
+def add_comment(post_id: str, user_id: str, text: str, parent_id: str | None = None) -> dict:
     """
     Add a comment to a post.
     @param post_id Post UUID
     @param user_id Commenter UUID
     @param text Comment text
+    @param parent_id Optional parent comment UUID
     @returns formatted comment dict
     """
-    comment = post_repository.create_comment(post_id, user_id, text)
+    comment = post_repository.create_comment(post_id, user_id, text, parent_id=parent_id)
     # Fetch with author info for the response
     user = user_repository.get_user_by_id(user_id)
     comment["users"] = user
+
+    # Trigger notification if replying to another user's comment
+    if parent_id:
+        try:
+            parent_comment = post_repository.get_comment_by_id(parent_id)
+            if parent_comment and parent_comment.get("user_id"):
+                recipient_id = parent_comment["user_id"]
+                if recipient_id != user_id:
+                    snippet = text[:80] + ("..." if len(text) > 80 else "")
+                    target_payload = f"{post_id}:{comment['id']}"
+                    message_repository.create_notification(
+                        user_id=recipient_id,
+                        actor_id=user_id,
+                        action="replied to your comment",
+                        text=snippet,
+                        target=target_payload,
+                        system=False
+                    )
+        except Exception as e:
+            logger.error(f"Failed to create reply notification: {e}")
+
     return _format_comment(comment)
+
+
+def delete_comment(user_id: str, comment_id: str) -> dict:
+    """
+    Delete a comment owned by user_id.
+    Validates that user_id is the author of the comment (by UUID or profile name).
+    """
+    comment = post_repository.get_comment_by_id(comment_id)
+    if not comment:
+        raise ValueError("Comment not found")
+
+    comment_author_id = comment.get("user_id")
+    current_user = user_repository.get_user_by_id(user_id)
+    author_user = user_repository.get_user_by_id(comment_author_id) if comment_author_id else None
+
+    is_author = False
+    if comment_author_id == user_id:
+        is_author = True
+    elif current_user and author_user and (current_user.get("name") == author_user.get("name") or current_user.get("id") == author_user.get("id")):
+        is_author = True
+    elif current_user and comment.get("users") and isinstance(comment.get("users"), dict) and current_user.get("name") == comment.get("users", {}).get("name"):
+        is_author = True
+
+    if not is_author:
+        raise PermissionError("You are not authorized to delete this comment")
+
+    success = post_repository.delete_comment_by_id(comment_id)
+    return {"success": success, "message": "Comment deleted successfully"}
 
 
 def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dict:
@@ -268,14 +318,25 @@ def _format_comment(comment: dict) -> dict:
     Transform DB comment into frontend format.
     """
     author = comment.get("users")
+    if not author and comment.get("user_id"):
+        try:
+            author = user_repository.get_user_by_id(comment["user_id"])
+        except Exception:
+            pass
+
     return {
         "id": comment["id"],
+        "post_id": comment.get("post_id"),
+        "user_id": comment.get("user_id"),
+        "parent_id": comment.get("parent_id"),
         "text": comment["text"],
         "author": {
+            "id": (author.get("id") if author else None) or comment.get("user_id"),
             "name": author.get("name", "unknown") if author else "unknown",
             "profile": (author.get("profile") or author.get("avatar") or "") if author else "",
         },
         "timestamp": _relative_time(comment.get("created_at")),
+        "created_at": comment.get("created_at"),
     }
 
 

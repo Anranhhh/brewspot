@@ -14,7 +14,7 @@ user_bp = Blueprint("users", __name__, url_prefix="/api/users")
 def _get_current_user_id() -> str | None:
     """
     Extract and validate the current user from the Authorization header.
-    Falls back to current database user if token is omitted/expired in dev mode.
+    Returns the user ID or None if unauthenticated.
     """
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -23,14 +23,7 @@ def _get_current_user_id() -> str | None:
         if user:
             return user["id"]
 
-    try:
-        users = user_repository.get_all_users()
-        if users:
-            return users[0]["id"]
-    except Exception:
-        pass
-
-    return "730fb366-1f2e-4d3f-8b7f-4aef3ffb596f"
+    return None
 
 
 @user_bp.route("/<user_id>", methods=["GET"])

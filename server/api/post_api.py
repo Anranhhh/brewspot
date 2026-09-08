@@ -16,7 +16,7 @@ post_bp = Blueprint("posts", __name__, url_prefix="/api/posts")
 def _get_current_user_id() -> str | None:
     """
     Extract and validate the current user from the Authorization header.
-    Falls back to current database user if token is omitted/expired in dev mode.
+    Returns the user ID or None if unauthenticated.
     """
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -25,15 +25,7 @@ def _get_current_user_id() -> str | None:
         if user:
             return user["id"]
 
-    from server.repositories import user_repository
-    try:
-        users = user_repository.get_all_users()
-        if users:
-            return users[0]["id"]
-    except Exception:
-        pass
-
-    return "730fb366-1f2e-4d3f-8b7f-4aef3ffb596f"
+    return None
 
 
 @post_bp.route("", methods=["GET"])
@@ -151,7 +143,7 @@ def add_comment(post_id: str):
     """
     Add a comment to a post. Requires authentication.
     POST /api/posts/:id/comments
-    Body: { text }
+    Body: { text, parent_id }
     """
     user_id = _get_current_user_id()
     if not user_id:
@@ -162,5 +154,27 @@ def add_comment(post_id: str):
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
-    comment = post_service.add_comment(post_id, user_id, body.text)
+    comment = post_service.add_comment(post_id, user_id, body.text, parent_id=body.parent_id)
     return jsonify(comment), 201
+
+
+@post_bp.route("/comments/<comment_id>", methods=["DELETE"])
+def delete_comment(comment_id: str):
+    """
+    Delete a comment. Requires authentication & author permission.
+    DELETE /api/posts/comments/:id
+    """
+    user_id = _get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    try:
+        result = post_service.delete_comment(user_id, comment_id)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error deleting comment {comment_id}: {e}")
+        return jsonify({"error": "Failed to delete comment"}), 500

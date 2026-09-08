@@ -39,3 +39,15 @@ export interface Cafe {
 }
 
 export type ProfileTab = 'posts' | 'liked' | 'saved' | 'shops';
+
+export interface CommentItem {
+  id: string;
+  post_id?: string;
+  user_id?: string;
+  parent_id?: string | null;
+  text: string;
+  author: Author;
+  timestamp: string;
+  created_at?: string;
+  replies?: CommentItem[];
+}

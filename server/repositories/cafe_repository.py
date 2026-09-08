@@ -140,8 +140,16 @@ def create_cafe(
         "tags": tags,
         "hero_image": hero_image,
         "inspiration_images": inspiration_images,
-        "latitude": latitude,
-        "longitude": longitude
     }
-    response = client.table("cafes").insert(payload).execute()
-    return response.data[0] if response.data else {}
+    try:
+        response = client.table("cafes").insert(payload).execute()
+        return response.data[0] if response.data else payload
+    except Exception as e:
+        logger.warning(f"Error creating cafe {id}: {e}")
+        minimal_payload = {"id": id, "name": name, "rating": rating, "address": address}
+        try:
+            response = client.table("cafes").insert(minimal_payload).execute()
+            return response.data[0] if response.data else minimal_payload
+        except Exception as inner_e:
+            logger.error(f"Failed minimal cafe insert for {id}: {inner_e}")
+            return payload
