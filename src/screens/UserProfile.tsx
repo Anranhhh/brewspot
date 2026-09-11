@@ -102,7 +102,7 @@ export default function UserProfileScreen({
             className="flex-1 flex flex-col pb-24 overflow-y-auto no-scrollbar bg-white"
         >
             {/* Header with Back Button */}
-            <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-slate-100">
+            <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md px-6 pb-4 pt-safe-top flex items-center justify-between border-b border-slate-100">
                 <button
                     onClick={() => onNavigate('discovery')}
                     className="p-2 -ml-2 text-slate-700 hover:bg-slate-100 rounded-full transition-colors"

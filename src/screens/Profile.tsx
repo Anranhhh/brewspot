@@ -47,7 +47,7 @@ export default function ProfileScreen({ currentUser, posts, userPosts, cafes, ac
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col pb-24 overflow-y-auto no-scrollbar"
         >
-            <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-primary/10">
+            <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 pb-4 pt-safe-top flex justify-between items-center border-b border-primary/10">
                 <h1 className="text-lg font-bold tracking-tight">@{currentUser ? currentUser.name.toLowerCase().replace(/\s+/g, '_') : 'guest'}</h1>
                 <div className="flex gap-4 relative">
                     <button className="text-slate-600"><Plus className="w-6 h-6" /></button>

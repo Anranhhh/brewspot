@@ -5,6 +5,10 @@ import './index.css';
 
 import {StatusBar, Style} from '@capacitor/status-bar';
 import {SplashScreen} from '@capacitor/splash-screen';
+import {defineCustomElements} from '@ionic/pwa-elements/loader';
+
+// Initialize Capacitor PWA Elements for web browser camera support
+defineCustomElements(window);
 
 // Initialize Capacitor native overlays if running in native app environment
 try {

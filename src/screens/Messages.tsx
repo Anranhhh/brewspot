@@ -187,7 +187,7 @@ export default function Messages({ onBack, currentUser, initialRecipient, onChat
                         className="flex-1 flex flex-col h-full overflow-hidden"
                     >
                         {/* Chat Window Header */}
-                        <header className="sticky top-0 z-50 bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+                        <header className="sticky top-0 z-50 bg-white border-b border-slate-100 px-4 pb-3 pt-safe-top flex items-center gap-3">
                             <button
                                 onClick={() => setActiveChatUser(null)}
                                 className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
@@ -278,7 +278,7 @@ export default function Messages({ onBack, currentUser, initialRecipient, onChat
                         exit={{ opacity: 0 }}
                         className="flex-1 flex flex-col h-full overflow-hidden"
                     >
-                        <header className="sticky top-0 z-50 bg-white backdrop-blur-xl px-4 pt-4 flex flex-col border-b border-primary/10">
+                        <header className="sticky top-0 z-50 bg-white backdrop-blur-xl px-4 pb-2 pt-safe-top flex flex-col border-b border-primary/10">
                             <div className="flex items-center justify-between mb-2">
                                 <h2 className="text-slate-900 text-xl font-bold leading-tight tracking-tight flex-1 text-center">BrewSpot</h2>
                             </div>

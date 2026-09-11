@@ -81,7 +81,7 @@ export default function Discovery({
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col pb-28 overflow-y-auto no-scrollbar"
         >
-            <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl px-6 pt-6 pb-2 border-b border-slate-100/50">
+            <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl px-6 pb-2 pt-safe-top border-b border-slate-100/50">
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-2xl font-bold tracking-tight text-[#E14D4D]">BrewSpot</h1>
                     <div className="w-10 h-10 rounded-full bg-[#E14D4D]/10 flex items-center justify-center">

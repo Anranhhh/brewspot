@@ -17,7 +17,7 @@ export default function CafeDetails({ cafe, onBack, onSave }: CafeDetailsScreenP
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="absolute inset-0 bg-white z-[60] overflow-y-auto no-scrollbar"
         >
-            <header className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center p-6">
+            <header className="absolute top-0 left-0 right-0 z-20 flex justify-between items-center px-6 pb-4 pt-safe-top">
                 <button onClick={onBack} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white">
                     <ChevronLeft className="w-6 h-6" />
                 </button>

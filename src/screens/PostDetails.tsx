@@ -179,7 +179,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
             className="absolute inset-0 bg-white z-[60] flex flex-col"
         >
             {/* Header */}
-            <header className="sticky top-0 z-10 flex items-center bg-white/80 backdrop-blur-md p-4 justify-between border-b border-primary/10">
+            <header className="sticky top-0 z-10 flex items-center bg-white/90 backdrop-blur-md px-4 pb-3 pt-safe-top justify-between border-b border-primary/10">
                 <button onClick={onBack} className="text-slate-900 flex size-10 items-center justify-center rounded-full hover:bg-slate-100 transition-colors">
                     <ChevronLeft className="w-6 h-6" />
                 </button>

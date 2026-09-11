@@ -27,9 +27,12 @@
   scrollbar-width: none;
 }
 
-/* Safe area inset support for mobile devices (iOS notch/Dynamic Island and Android gesture bars) */
+/* Safe area inset support for mobile devices (iOS notch/Dynamic Island and Android status/gesture bars) */
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
+}
+.pt-safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top, 1rem));
 }
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);

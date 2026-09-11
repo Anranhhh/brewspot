@@ -96,7 +96,7 @@ export default function ChatWindow({ recipient, currentUser, onBack }: ChatWindo
             className="flex-1 flex flex-col h-full bg-white relative overflow-hidden"
         >
             {/* Top Header */}
-            <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+            <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 px-4 pb-3 pt-safe-top flex items-center gap-3">
                 <button
                     onClick={onBack}
                     className="p-1.5 -ml-1 text-slate-700 hover:bg-slate-100 rounded-full transition-colors"

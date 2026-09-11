@@ -618,7 +618,7 @@ export default function Explore({
             className="flex-1 flex flex-col relative h-full"
         >
             {/* Top Controls Overlay */}
-            <div className="absolute top-0 left-0 w-full z-10 p-4 pt-6">
+            <div className="absolute top-0 left-0 w-full z-10 px-4 pb-4 pt-safe-top">
                 <form onSubmit={handleSearchSubmit} className="flex items-center gap-3">
                     <div className="flex-1 flex items-center bg-white/90 backdrop-blur-md rounded-full shadow-lg border border-primary/10 px-4 py-2">
                         <Search className="w-5 h-5 text-primary mr-2" />

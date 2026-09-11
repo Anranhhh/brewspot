@@ -21,6 +21,7 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     const triggerHaptic = async () => {
         try {
@@ -41,10 +42,14 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
             });
             if (image.webPath) {
                 setPhotoUrl(image.webPath);
+                return;
             }
-        } catch {
-            fileInputRef.current?.click();
+        } catch (err) {
+            console.log('Capacitor camera prompt closed/fallback to file picker:', err);
         }
+
+        // Web PWA fallback to native browser file/camera chooser
+        fileInputRef.current?.click();
     };
 
     const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -92,9 +97,9 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-0 bg-white z-[100] flex flex-col pt-safe"
+            className="fixed inset-0 bg-white z-[100] flex flex-col"
         >
-            <header className="px-6 py-4 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100">
+            <header className="px-6 pb-4 pt-safe-top flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10 border-b border-slate-100">
                 <button onClick={onClose} className="w-10 h-10 flex items-center justify-start text-slate-400">
                     <X className="w-6 h-6" />
                 </button>
@@ -109,6 +114,14 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
                         ref={fileInputRef}
                         onChange={handleFileInputChange}
                         accept="image/*"
+                        className="hidden"
+                    />
+                    <input
+                        type="file"
+                        ref={cameraInputRef}
+                        onChange={handleFileInputChange}
+                        accept="image/*"
+                        capture="environment"
                         className="hidden"
                     />
 
