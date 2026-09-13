@@ -193,6 +193,27 @@ def toggle_like(user_id: str, post_id: str) -> dict:
     """
     is_liked = post_repository.toggle_post_like(user_id, post_id)
     stats = post_repository.get_post_stats(post_id)
+
+    # Trigger notification if post is newly liked and user is not the post owner
+    if is_liked:
+        try:
+            post = post_repository.get_post_by_id(post_id)
+            if post and post.get("user_id"):
+                post_owner_id = post["user_id"]
+                if post_owner_id != user_id:
+                    caption_text = post.get("caption") or ""
+                    snippet = caption_text[:60] + ("..." if len(caption_text) > 60 else "")
+                    message_repository.create_notification(
+                        user_id=post_owner_id,
+                        actor_id=user_id,
+                        action="liked your post",
+                        text=snippet,
+                        target=post_id,
+                        system=False
+                    )
+        except Exception as e:
+            logger.error(f"Failed to create like notification: {e}")
+
     return {"isLiked": is_liked, "likes": stats.get("likes_count", 0)}
 
 
@@ -205,6 +226,27 @@ def toggle_save(user_id: str, post_id: str) -> dict:
     """
     is_saved = post_repository.toggle_post_save(user_id, post_id)
     stats = post_repository.get_post_stats(post_id)
+
+    # Trigger notification if post is newly saved and user is not the post owner
+    if is_saved:
+        try:
+            post = post_repository.get_post_by_id(post_id)
+            if post and post.get("user_id"):
+                post_owner_id = post["user_id"]
+                if post_owner_id != user_id:
+                    caption_text = post.get("caption") or ""
+                    snippet = caption_text[:60] + ("..." if len(caption_text) > 60 else "")
+                    message_repository.create_notification(
+                        user_id=post_owner_id,
+                        actor_id=user_id,
+                        action="saved your post",
+                        text=snippet,
+                        target=post_id,
+                        system=False
+                    )
+        except Exception as e:
+            logger.error(f"Failed to create save notification: {e}")
+
     return {"isSaved": is_saved, "saves": stats.get("saves_count", 0)}
 
 
@@ -232,15 +274,17 @@ def add_comment(post_id: str, user_id: str, text: str, parent_id: str | None = N
     user = user_repository.get_user_by_id(user_id)
     comment["users"] = user
 
-    # Trigger notification if replying to another user's comment
+    snippet = text[:80] + ("..." if len(text) > 80 else "")
+    target_payload = f"{post_id}:{comment['id']}"
+    notified_user_ids: set[str] = set()
+
+    # 1. Trigger notification if replying to another user's comment
     if parent_id:
         try:
             parent_comment = post_repository.get_comment_by_id(parent_id)
             if parent_comment and parent_comment.get("user_id"):
                 recipient_id = parent_comment["user_id"]
                 if recipient_id != user_id:
-                    snippet = text[:80] + ("..." if len(text) > 80 else "")
-                    target_payload = f"{post_id}:{comment['id']}"
                     message_repository.create_notification(
                         user_id=recipient_id,
                         actor_id=user_id,
@@ -249,8 +293,26 @@ def add_comment(post_id: str, user_id: str, text: str, parent_id: str | None = N
                         target=target_payload,
                         system=False
                     )
+                    notified_user_ids.add(recipient_id)
         except Exception as e:
             logger.error(f"Failed to create reply notification: {e}")
+
+    # 2. Trigger notification to the post owner if commenter is not the post owner
+    try:
+        post = post_repository.get_post_by_id(post_id)
+        if post and post.get("user_id"):
+            post_owner_id = post["user_id"]
+            if post_owner_id != user_id and post_owner_id not in notified_user_ids:
+                message_repository.create_notification(
+                    user_id=post_owner_id,
+                    actor_id=user_id,
+                    action="commented on your post",
+                    text=snippet,
+                    target=target_payload,
+                    system=False
+                )
+    except Exception as e:
+        logger.error(f"Failed to create post owner comment notification: {e}")
 
     return _format_comment(comment)
 
