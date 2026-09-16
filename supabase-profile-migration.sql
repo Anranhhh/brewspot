@@ -97,6 +97,19 @@ CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT TO au
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
+-- Align existing Auth display names/usernames with the profile table.
+-- Profiles are the app source of truth; this keeps the Auth dashboard and
+-- future Auth-trigger fallbacks consistent for the same UID.
+UPDATE auth.users au
+SET raw_user_meta_data = coalesce(au.raw_user_meta_data, '{}'::jsonb)
+  || jsonb_build_object(
+    'name', p.display_name,
+    'display_name', p.display_name,
+    'username', p.username
+  )
+FROM public.profiles p
+WHERE p.id = au.id;
+
 -- The bucket itself must already exist. These policies protect only the
 -- user's own {auth.uid()}/... folder.
 UPDATE storage.buckets SET public = true WHERE id = 'profile-defaults';

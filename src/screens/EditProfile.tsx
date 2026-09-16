@@ -4,6 +4,7 @@ import { ChevronLeft, Camera, Image as ImageIcon, X, Check, Coffee, Sparkles, Bu
 import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Screen } from '../types';
 import * as api from '../services/api';
+import { supabase } from '../services/supabaseClient';
 
 type EditProfileProps = {
   currentUser: {
@@ -24,7 +25,7 @@ type EditProfileProps = {
 const DEFAULT_AVATARS = [
   { path: 'coffee-beans.png', name: 'Coffee Beans', icon: Coffee, desc: 'Classic roasted beans' },
   { path: 'coffee-cup.png', name: 'Iced Coffee', icon: Sparkles, desc: 'Aesthetic espresso cup' },
-  { path: 'coffee-plant.png', name: 'Coffee Plant', icon: Leaf, desc: 'Fresh coffee leaves' },
+  { path: 'offee-plant.png', name: 'Coffee Plant', icon: Leaf, desc: 'Fresh coffee leaves' },
   { path: 'cafe-storefront.png', name: 'Café Store', icon: Building2, desc: 'Cozy neighborhood café' },
   { path: 'abstract-coffee.png', name: 'Coffee Latte', icon: Sparkles, desc: 'Modern latte art' },
 ];
@@ -166,6 +167,19 @@ export default function EditProfileScreen({ currentUser, onNavigate, onProfileUp
       });
 
       const updatedProfile = updatedUserRes.user || updatedUserRes;
+
+      // Keep the Auth user metadata aligned with the public profile record.
+      // The profile table remains the source of truth for app display.
+      const { error: authMetadataError } = await supabase.auth.updateUser({
+        data: {
+          name: updatedProfile.display_name,
+          display_name: updatedProfile.display_name,
+          username: updatedProfile.username,
+        },
+      });
+      if (authMetadataError) {
+        console.warn('Profile saved, but Auth metadata sync failed:', authMetadataError.message);
+      }
 
       // Step C (Success Cleanup): Delete old custom avatar if replacing with a new avatar
       const previousWasUploaded = initialAvatarType === 'uploaded' && initialAvatarPath && initialAvatarPath.includes('/');
