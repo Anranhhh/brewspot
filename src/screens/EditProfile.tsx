@@ -25,7 +25,7 @@ type EditProfileProps = {
 const DEFAULT_AVATARS = [
   { path: 'coffee-beans.png', name: 'Coffee Beans', icon: Coffee, desc: 'Classic roasted beans' },
   { path: 'coffee-cup.png', name: 'Iced Coffee', icon: Sparkles, desc: 'Aesthetic espresso cup' },
-  { path: 'offee-plant.png', name: 'Coffee Plant', icon: Leaf, desc: 'Fresh coffee leaves' },
+  { path: 'coffee-plant.png', name: 'Coffee Plant', icon: Leaf, desc: 'Fresh coffee leaves' },
   { path: 'cafe-storefront.png', name: 'Café Store', icon: Building2, desc: 'Cozy neighborhood café' },
   { path: 'abstract-coffee.png', name: 'Coffee Latte', icon: Sparkles, desc: 'Modern latte art' },
 ];
