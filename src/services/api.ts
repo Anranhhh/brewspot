@@ -14,8 +14,9 @@ import { supabase } from './supabaseClient';
  * when running inside Capacitor native apps to avoid relative URL fetch errors in WebKit.
  */
 function getApiBaseUrl(): string {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    const envUrl = import.meta.env.VITE_API_BASE_URL;
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configuredUrl) {
+    const envUrl = configuredUrl;
     return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
   }
 
@@ -27,6 +28,11 @@ function getApiBaseUrl(): string {
      Boolean((window as any).Capacitor?.isNativePlatform?.()));
 
   if (isNative) {
+    // Packaged Capacitor builds cannot reach a relative /api URL. Use the
+    // deployed function in production; localhost aliases are for dev only.
+    if (import.meta.env.PROD) {
+      return 'https://brewspot-wwh4.vercel.app/api';
+    }
     const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
     // 10.0.2.2 is Android emulator's alias to host machine localhost
     // 127.0.0.1:5050 is iOS simulator's alias to host machine IPv4 loopback
