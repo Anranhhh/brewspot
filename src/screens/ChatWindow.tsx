@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Send, MessageSquare } from 'lucide-react';
 import * as api from '../services/api';
+import { supabase } from '../services/supabaseClient';
 
 type ChatWindowProps = {
     recipient: { id?: string; name: string; profile?: string | null } | null;
@@ -35,6 +36,47 @@ export default function ChatWindow({ recipient, currentUser, onBack }: ChatWindo
             })
             .finally(() => setIsLoading(false));
     }, [targetIdentifier]);
+
+    // Supabase Realtime Live Message Delivery Subscription
+    useEffect(() => {
+        if (!currentUser?.id && !targetIdentifier) return;
+
+        const channel = supabase
+            .channel(`chat_${currentUser?.id || 'guest'}_${targetIdentifier}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'direct_messages',
+                },
+                (payload) => {
+                    const newMsg = payload.new;
+                    // Check if message belongs to this conversation
+                    const isRelevant =
+                        (newMsg.sender_id === currentUser?.id && (newMsg.receiver_id === recipient?.id || newMsg.receiver_id === targetIdentifier)) ||
+                        (newMsg.receiver_id === currentUser?.id && (newMsg.sender_id === recipient?.id || newMsg.sender_id === targetIdentifier));
+
+                    if (isRelevant) {
+                        setConversation((prev) => {
+                            if (prev.some((m) => m.id === newMsg.id)) return prev;
+                            const formatted = {
+                                ...newMsg,
+                                sender: newMsg.sender_id === currentUser?.id
+                                    ? { id: currentUser?.id, name: currentUser?.name || 'You', profile: currentUser?.profile }
+                                    : { id: recipient?.id, name: targetName, profile: targetAvatar },
+                            };
+                            return [...prev, formatted];
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [currentUser, recipient, targetIdentifier, targetName, targetAvatar]);
 
     // Auto scroll to bottom on new messages
     useEffect(() => {
@@ -111,7 +153,7 @@ export default function ChatWindow({ recipient, currentUser, onBack }: ChatWindo
                 <div className="flex-1 min-w-0">
                     <h2 className="font-bold text-slate-900 text-sm truncate">{targetName}</h2>
                     <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active Now
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active Now
                     </p>
                 </div>
             </header>

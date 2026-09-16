@@ -6,27 +6,87 @@ import { Cafe, Screen } from '../types';
 import { Geolocation } from '@capacitor/geolocation';
 
 /**
- * Retrieve current user position via Capacitor native Geolocation plugin with Web fallback.
+ * IP-based geolocation fallback when GPS / CoreLocation is unavailable or times out.
+ */
+async function getIpUserPosition(): Promise<LatLng | null> {
+    try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+            const data = await res.json();
+            if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                return { lat: data.latitude, lng: data.longitude };
+            }
+        }
+    } catch {
+        // Fallback secondary IP API
+    }
+
+    try {
+        const res2 = await fetch('https://ip-api.com/json/?fields=lat,lon,status');
+        if (res2.ok) {
+            const data2 = await res2.json();
+            if (data2.status === 'success' && typeof data2.lat === 'number' && typeof data2.lon === 'number') {
+                return { lat: data2.lat, lng: data2.lon };
+            }
+        }
+    } catch {
+        // Ignore fallback error
+    }
+
+    return null;
+}
+
+/**
+ * Retrieve current user position via Capacitor native Geolocation, Web Geolocation API, and IP fallback.
  */
 async function getCurrentUserPosition(): Promise<LatLng | null> {
+    // 1. Try Capacitor Geolocation (High accuracy)
     try {
-        const position = await Geolocation.getCurrentPosition({ timeout: 5000, enableHighAccuracy: true });
+        const position = await Geolocation.getCurrentPosition({
+            timeout: 3000,
+            enableHighAccuracy: true,
+            maximumAge: 60000,
+        });
         return {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
         };
     } catch {
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-            return new Promise((resolve) => {
-                navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                    () => resolve(null),
-                    { timeout: 5000 }
-                );
-            });
-        }
-        return null;
+        // High accuracy failed or timed out
     }
+
+    // 2. Try Capacitor Geolocation (Low accuracy / Wi-Fi positioning)
+    try {
+        const position = await Geolocation.getCurrentPosition({
+            timeout: 3000,
+            enableHighAccuracy: false,
+            maximumAge: 60000,
+        });
+        return {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+        };
+    } catch {
+        // Low accuracy failed
+    }
+
+    // 3. Try Browser Web Navigator Geolocation
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        const webPos = await new Promise<LatLng | null>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => resolve(null),
+                { timeout: 4000, enableHighAccuracy: false }
+            );
+        });
+        if (webPos) return webPos;
+    }
+
+    // 4. Fallback to IP-based Geolocation (accurate to user's actual city / region)
+    const ipPos = await getIpUserPosition();
+    if (ipPos) return ipPos;
+
+    return null;
 }
 
 // Declare global window interfaces for TypeScript safety
@@ -73,7 +133,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<any> {
         }
 
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
         script.async = true;
         script.defer = true;
         script.onload = () => {
@@ -746,7 +806,7 @@ export default function Explore({
                     <div className="bg-white rounded-xl shadow-2xl p-4 flex gap-4 items-center border border-primary/5">
                         <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0">
                             <img
-                                src={selectedCafe.heroImage}
+                                src={selectedCafe.heroImage || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=400'}
                                 className="w-full h-full object-cover"
                                 alt={selectedCafe.name}
                                 referrerPolicy="no-referrer"

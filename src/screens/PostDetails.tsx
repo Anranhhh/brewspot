@@ -1,8 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Bookmark, ChevronLeft, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply } from 'lucide-react';
+import { Bookmark, ChevronLeft, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Post } from '../types';
 import * as api from '../services/api';
+import { ReportModal } from '../components/LegalAndModerationModal';
 
 type PostDetailScreenProps = {
     post: Post;
@@ -22,6 +23,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
     const [isPostingComment, setIsPostingComment] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Comment Action Modal & Reply State
@@ -214,12 +216,24 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                                         <span>Delete Post</span>
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={() => setShowMenu(false)}
-                                        className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-                                    >
-                                        Share Post
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setShowMenu(false);
+                                                setShowReportModal(true);
+                                            }}
+                                            className="w-full text-left px-4 py-3 text-sm font-semibold text-amber-600 hover:bg-amber-50 flex items-center gap-2 transition-colors border-b border-slate-100"
+                                        >
+                                            <Flag className="w-4 h-4 text-amber-500" />
+                                            <span>Report Post</span>
+                                        </button>
+                                        <button
+                                            onClick={() => setShowMenu(false)}
+                                            className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                                        >
+                                            Share Post
+                                        </button>
+                                    </>
                                 )}
                             </motion.div>
                         )}
@@ -232,7 +246,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                 {/* Media Image */}
                 <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
                     <img
-                        src={post.imageUrl}
+                        src={post.imageUrl || undefined}
                         alt="Post media"
                         className="w-full h-full object-cover"
                     />
@@ -466,6 +480,17 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Report Post Modal */}
+            <ReportModal
+                isOpen={showReportModal}
+                targetType="post"
+                targetName={post.author?.name}
+                onClose={() => setShowReportModal(false)}
+                onSubmitReport={async (reason, details) => {
+                    await api.reportContent('post', post.id, reason, details);
+                }}
+            />
         </motion.div>
     );
 }

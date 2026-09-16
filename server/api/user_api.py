@@ -19,9 +19,9 @@ def _get_current_user_id() -> str | None:
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
-        user = auth_service.get_current_user(token)
-        if user:
-            return user["id"]
+        user_id = auth_service.get_authenticated_user_id(token)
+        if user_id:
+            return user_id
 
     return None
 
@@ -35,6 +35,27 @@ def get_user(user_id: str):
     current_user_id = _get_current_user_id()
     profile = user_service.get_user_profile_data(user_id, current_user_id)
     return jsonify(profile), 200
+
+
+@user_bp.route("/me", methods=["PUT"])
+def update_current_user_profile():
+    """
+    Update authenticated user's profile.
+    PUT /api/users/me
+    Body JSON: { display_name, username, bio, avatar_type, avatar_path }
+    """
+    current_user_id = _get_current_user_id()
+    if not current_user_id:
+        return jsonify({"error": "Authentication required"}), 401
+
+    data = request.get_json() or {}
+    try:
+        updated_profile = user_repository.update_user_profile(current_user_id, data)
+        return jsonify({"success": True, "user": updated_profile}), 200
+    except ValueError as e:
+        error_msg = str(e)
+        status_code = 409 if "already taken" in error_msg.lower() else 400
+        return jsonify({"error": error_msg}), status_code
 
 
 @user_bp.route("/<user_id>/follow", methods=["POST"])

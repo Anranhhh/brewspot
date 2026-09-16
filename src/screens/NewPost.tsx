@@ -1,23 +1,26 @@
 import { useState, useRef, ChangeEvent, FormEvent } from 'react';
-import { MapPin, Plus, Send, Star, X, Camera as CameraIcon } from 'lucide-react';
+import { MapPin, Plus, Send, Star, X, Camera as CameraIcon, UploadCloud } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import * as api from '../services/api';
+import { supabase } from '../services/supabaseClient';
 
 type NewPostProps = {
     onClose: () => void;
     onPostCreated?: () => void;
+    initialCafe?: any;
 };
 
-export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
-    const [photoUrl, setPhotoUrl] = useState<string>(
+export default function NewPost({ onClose, onPostCreated, initialCafe }: NewPostProps) {
+    const [photoUrl, setPhotoUrl] = useState<string | null>(
         'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=800'
     );
-    const [location, setLocation] = useState<string>('The Blanc Atelier');
-    const [rating, setRating] = useState<number>(4.5);
+    const [location, setLocation] = useState<string>(initialCafe?.name || 'The Blanc Atelier');
+    const [rating, setRating] = useState<number>(initialCafe?.rating || 4.5);
     const [caption, setCaption] = useState<string>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadingProgress, setUploadingProgress] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,12 +30,19 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
         try {
             await Haptics.impact({ style: ImpactStyle.Light });
         } catch {
-            // Ignore in web browser if haptics unavailable
+            // Ignore if haptics not available
         }
     };
 
     const handleSelectPhoto = async () => {
         await triggerHaptic();
+
+        const isNative = Boolean((window as any).Capacitor?.isNativePlatform?.());
+        if (!isNative) {
+            fileInputRef.current?.click();
+            return;
+        }
+
         try {
             const image = await Camera.getPhoto({
                 quality: 90,
@@ -44,24 +54,66 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
                 setPhotoUrl(image.webPath);
                 return;
             }
-        } catch (err) {
-            console.log('Capacitor camera prompt closed/fallback to file picker:', err);
+        } catch {
+            // Cancellation or denied permission should not open a second
+            // picker or force the user to choose a photo.
+            return;
         }
-
-        // Web PWA fallback to native browser file/camera chooser
-        fileInputRef.current?.click();
     };
 
     const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (file.size > 10 * 1024 * 1024) {
+                setErrorMsg('Image is too large. Please select an image under 10MB.');
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (event) => {
                 if (event.target?.result) {
                     setPhotoUrl(event.target.result as string);
+                    setErrorMsg(null);
                 }
             };
             reader.readAsDataURL(file);
+        }
+    };
+
+    const uploadImageToSupabase = async (imageUriOrData: string): Promise<string> => {
+        if (!imageUriOrData.startsWith('data:') && !imageUriOrData.startsWith('blob:')) {
+            return imageUriOrData;
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || 'guest';
+
+        try {
+            const response = await fetch(imageUriOrData);
+            const blob = await response.blob();
+
+            const ext = blob.type.split('/')[1] || 'jpeg';
+            const filePath = `${userId}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+
+            const { error } = await supabase.storage
+                .from('post-images')
+                .upload(filePath, blob, {
+                    cacheControl: '3600',
+                    upsert: true,
+                });
+
+            if (error) {
+                console.warn('Storage bucket upload warning:', error.message);
+                return imageUriOrData;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+                .from('post-images')
+                .getPublicUrl(filePath);
+
+            return publicUrlData.publicUrl;
+        } catch (err) {
+            console.warn('Failed to upload image blob:', err);
+            return imageUriOrData;
         }
     };
 
@@ -71,11 +123,18 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
 
         setErrorMsg(null);
         setIsSubmitting(true);
+        setUploadingProgress('Compressing & uploading image...');
         await triggerHaptic();
 
         try {
+            if (!photoUrl) {
+                throw new Error('Please choose a photo before publishing.');
+            }
+            const finalImageUrl = await uploadImageToSupabase(photoUrl);
+            setUploadingProgress('Publishing post to feed...');
+
             await api.createPost({
-                image_url: photoUrl,
+                image_url: finalImageUrl,
                 location: location.trim() || undefined,
                 rating: rating,
                 caption: caption.trim() || undefined,
@@ -88,6 +147,7 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
             setErrorMsg(err.message || 'Failed to publish post. Please try again.');
         } finally {
             setIsSubmitting(false);
+            setUploadingProgress(null);
         }
     };
 
@@ -136,7 +196,7 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
                         className="mt-4 aspect-square relative rounded-2xl overflow-hidden group cursor-pointer border border-slate-100 shadow-sm"
                     >
                         <img
-                            src={photoUrl}
+                            src={photoUrl || undefined}
                             className="w-full h-full object-cover"
                             alt="Preview"
                         />
@@ -215,8 +275,17 @@ export default function NewPost({ onClose, onPostCreated }: NewPostProps) {
                         disabled={isSubmitting}
                         className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-full shadow-lg shadow-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
                     >
-                        <span>{isSubmitting ? 'Publishing...' : 'Share Post'}</span>
-                        <Send className="w-4 h-4" />
+                        {isSubmitting ? (
+                            <>
+                                <UploadCloud className="w-4 h-4 animate-bounce" />
+                                <span>{uploadingProgress || 'Publishing...'}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>Share Post</span>
+                                <Send className="w-4 h-4" />
+                            </>
+                        )}
                     </button>
                 </div>
             </form>

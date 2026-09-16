@@ -37,7 +37,12 @@ def get_user_profile_data(target_identifier: str, current_user_id: str | None = 
     return {
         "id": target_user_id,
         "name": name,
+        "display_name": user.get("display_name", name) if user else name,
+        "username": user.get("username") if user else None,
         "profile": profile_pic,
+        "avatar_type": user.get("avatar_type", "default") if user else "default",
+        "avatar_path": user.get("avatar_path", "coffee-beans.png") if user else "coffee-beans.png",
+        "bio": user.get("bio", "") if user else "",
         "postsCount": posts_count,
         "followersCount": followers_count,
         "followingCount": following_count,

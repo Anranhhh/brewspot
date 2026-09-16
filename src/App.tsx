@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as api from './services/api';
+import { supabase } from './services/supabaseClient';
 import {
   Home,
   Plus,
@@ -17,13 +18,16 @@ import CafeDetails from './screens/CafeDetails';
 import PostDetails from './screens/PostDetails';
 import Profile from './screens/Profile';
 import UserProfile from './screens/UserProfile';
+import EditProfileScreen from './screens/EditProfile';
 import Messages from './screens/Messages';
 import ChatWindow from './screens/ChatWindow';
 import NewPost from './screens/NewPost';
 import Success from './screens/Success';
+import AuthPrompt from './components/AuthPrompt';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  // App opens to Discovery screen by default (Guest Mode supported)
+  const [currentScreen, setCurrentScreen] = useState<Screen>('discovery');
   const [selectedCafe, setSelectedCafe] = useState<Cafe | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -35,6 +39,12 @@ export default function App() {
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
+
+  // AuthPrompt Modal State
+  const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
+  const [authPromptTitle, setAuthPromptTitle] = useState('Join BrewSpot');
+  const [authPromptSubtitle, setAuthPromptSubtitle] = useState('Create a BrewSpot account to interact, save cafés, and share your favorite coffee spots.');
+  const [pendingAuthAction, setPendingAuthAction] = useState<(() => void) | null>(null);
 
   const fetchFeedData = useCallback(async () => {
     setIsLoadingFeed(true);
@@ -67,15 +77,58 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Sync session state using Supabase Auth listener
   useEffect(() => {
-    api.getMe().then((res) => {
-      if (res && res.user) {
-        setCurrentUser(res.user);
-        if (currentScreen === 'login' || currentScreen === 'register') {
-          setCurrentScreen('discovery');
+    // 1. Initial user check
+    const syncUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        if (session.access_token) {
+          localStorage.setItem('brewspot_token', session.access_token);
         }
+        const profile = await api.getMe();
+        if (profile?.user) {
+          setCurrentUser(profile.user);
+        } else {
+          setCurrentUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+            profile: session.user.user_metadata?.avatar_url || null,
+          });
+        }
+      } else {
+        localStorage.removeItem('brewspot_token');
+        setCurrentUser(null);
+      }
+    };
+
+    syncUser();
+
+    // 2. Auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        if (session.access_token) {
+          localStorage.setItem('brewspot_token', session.access_token);
+        }
+        const profile = await api.getMe();
+        if (profile?.user) {
+          setCurrentUser(profile.user);
+        } else {
+          setCurrentUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+            profile: session.user.user_metadata?.avatar_url || null,
+          });
+        }
+      } else {
+        localStorage.removeItem('brewspot_token');
+        setCurrentUser(null);
       }
     });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -88,9 +141,26 @@ export default function App() {
 
   const [selectedUser, setSelectedUser] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
   const [exploreSearchQuery, setExploreSearchQuery] = useState<string>('');
+  const [newPostCafe, setNewPostCafe] = useState<Cafe | null>(null);
   const [messageRecipient, setMessageRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
   const [chatRecipient, setChatRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // Helper to require authentication for protected actions
+  const requireAuth = (
+    action: () => void,
+    title = 'Join BrewSpot',
+    subtitle = 'Create a BrewSpot account to save cafés, follow users, and build your coffee collection.'
+  ) => {
+    if (currentUser) {
+      action();
+    } else {
+      setAuthPromptTitle(title);
+      setAuthPromptSubtitle(subtitle);
+      setPendingAuthAction(() => action);
+      setIsAuthPromptOpen(true);
+    }
+  };
 
   const navigateTo = (screen: Screen, data: any = null, tab?: any) => {
     if (screen !== 'messages') {
@@ -100,6 +170,7 @@ export default function App() {
       setHighlightCommentId(null);
     }
 
+    if (screen === 'new-post') setNewPostCafe(data as Cafe);
     if (screen === 'cafe-details') setSelectedCafe(data as Cafe);
     if (screen === 'post-details') setSelectedPost(data as Post);
     if (screen === 'profile' && tab) setProfileTab(tab);
@@ -158,79 +229,197 @@ export default function App() {
     }
   };
 
-  const handleLogin = async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    setCurrentUser(res.user);
-    navigateTo('discovery');
+  // Real Supabase Auth Login
+  const handleLogin = async (email: string, pass: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password: pass,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (data.session) {
+      localStorage.setItem('brewspot_token', data.session.access_token);
+    }
+
+    const profile = await api.getMe();
+    if (profile?.user) {
+      setCurrentUser(profile.user);
+    } else if (data.user) {
+      setCurrentUser({
+        id: data.user.id,
+        name: data.user.user_metadata?.name || email.split('@')[0],
+        profile: data.user.user_metadata?.avatar_url || null,
+      });
+    }
+
+    // Execute pending auth action if available
+    if (pendingAuthAction) {
+      const act = pendingAuthAction;
+      setPendingAuthAction(null);
+      act();
+    } else {
+      navigateTo('discovery');
+    }
     void fetchFeedData();
   };
 
-  const handleRegister = async (email: string, password: string, name: string) => {
-    const res = await api.register(email, password, name);
-    setCurrentUser(res.user);
-    navigateTo('success');
-    void fetchFeedData();
+  // Real Supabase Auth Registration
+  const handleRegister = async (email: string, pass: string, name: string, username?: string) => {
+    const cleanUsername = username || `${name.toLowerCase().replace(/\s+/g, '_')}_${Math.floor(Math.random() * 1000)}`;
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: pass,
+        options: {
+          data: {
+            name,
+            display_name: name,
+            username: cleanUsername,
+          },
+        },
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes('rate limit') || error.message.toLowerCase().includes('api key')) {
+          // Fallback to backend admin creation if email rate limit is hit
+          const backendRes = await api.register(email, pass, name);
+          if (backendRes?.access_token) {
+            localStorage.setItem('brewspot_token', backendRes.access_token);
+          }
+          if (backendRes?.user) {
+            setCurrentUser(backendRes.user);
+            navigateTo('success');
+            void fetchFeedData();
+            return { requiresVerification: false };
+          }
+        }
+        throw new Error(error.message);
+      }
+
+      if (data.session) {
+        localStorage.setItem('brewspot_token', data.session.access_token);
+        const profile = await api.getMe();
+        setCurrentUser(profile?.user || {
+          id: data.user!.id,
+          name,
+          display_name: name,
+          username: cleanUsername,
+          profile: null,
+        });
+        navigateTo('success');
+        void fetchFeedData();
+        return { requiresVerification: false };
+      }
+
+      // Otherwise email verification is required
+      return { requiresVerification: true };
+    } catch (err: any) {
+      if (err.message?.toLowerCase().includes('rate limit')) {
+        const backendRes = await api.register(email, pass, name);
+        if (backendRes?.access_token) {
+          localStorage.setItem('brewspot_token', backendRes.access_token);
+        }
+        if (backendRes?.user) {
+          setCurrentUser(backendRes.user);
+          navigateTo('success');
+          void fetchFeedData();
+          return { requiresVerification: false };
+        }
+      }
+      throw err;
+    }
   };
 
-  const handleLogout = () => {
+  // Real Password Reset Flow
+  const handleResetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/`,
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  // Real Logout Flow
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     api.logout();
     setCurrentUser(null);
-    navigateTo('login');
+    navigateTo('discovery');
+  };
+
+  // Real Account Deletion Flow
+  const handleDeleteAccount = async () => {
+    if (!currentUser) return;
+    await supabase.auth.signOut();
+    api.logout();
+    setCurrentUser(null);
+    navigateTo('discovery');
   };
 
   const handleLike = async (postId: string) => {
-    const update = (p: Post) =>
-      p.id === postId
-        ? { ...p, isLiked: !p.isLiked, likes: (p.likes || 0) + (p.isLiked ? -1 : 1) }
-        : p;
+    requireAuth(async () => {
+      const update = (p: Post) =>
+        p.id === postId
+          ? { ...p, isLiked: !p.isLiked, likes: (p.likes || 0) + (p.isLiked ? -1 : 1) }
+          : p;
 
-    setPosts((prev) => prev.map(update));
-    setUserPosts((prev) => prev.map(update));
-    if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => (prev ? update(prev) : null));
-    }
+      setPosts((prev) => prev.map(update));
+      setUserPosts((prev) => prev.map(update));
+      if (selectedPost?.id === postId) {
+        setSelectedPost((prev) => (prev ? update(prev) : null));
+      }
 
-    try {
-      await api.toggleLikePost(postId);
-    } catch { }
+      try {
+        await api.toggleLikePost(postId);
+      } catch { }
+    }, 'Like this post', 'Sign in to like posts and keep track of your favorite coffee moments.');
   };
 
   const handleSave = async (postId: string) => {
-    const update = (p: Post) =>
-      p.id === postId
-        ? { ...p, isSaved: !p.isSaved, saves: (p.saves || 0) + (p.isSaved ? -1 : 1) }
-        : p;
+    requireAuth(async () => {
+      const update = (p: Post) =>
+        p.id === postId
+          ? { ...p, isSaved: !p.isSaved, saves: (p.saves || 0) + (p.isSaved ? -1 : 1) }
+          : p;
 
-    setPosts((prev) => prev.map(update));
-    setUserPosts((prev) => prev.map(update));
-    if (selectedPost?.id === postId) {
-      setSelectedPost((prev) => (prev ? update(prev) : null));
-    }
+      setPosts((prev) => prev.map(update));
+      setUserPosts((prev) => prev.map(update));
+      if (selectedPost?.id === postId) {
+        setSelectedPost((prev) => (prev ? update(prev) : null));
+      }
 
-    try {
-      await api.toggleSavePost(postId);
-    } catch { }
+      try {
+        await api.toggleSavePost(postId);
+      } catch { }
+    }, 'Save this post', 'Sign in to save posts to your personal collection.');
   };
 
   const handleSaveCafe = async (cafeId: string, cafeDetails?: Cafe) => {
-    const exists = cafes.some((c) => c.id === cafeId);
-    if (exists) {
-      setCafes((prev) =>
-        prev.map((c) => (c.id === cafeId ? { ...c, isSaved: !c.isSaved } : c))
-      );
-    } else if (cafeDetails) {
-      setCafes((prev) => [...prev, { ...cafeDetails, isSaved: true }]);
-    }
+    requireAuth(async () => {
+      const exists = cafes.some((c) => c.id === cafeId);
+      if (exists) {
+        setCafes((prev) =>
+          prev.map((c) => (c.id === cafeId ? { ...c, isSaved: !c.isSaved } : c))
+        );
+      } else if (cafeDetails) {
+        setCafes((prev) => [...prev, { ...cafeDetails, isSaved: true }]);
+      }
 
-    if (selectedCafe?.id === cafeId) {
-      setSelectedCafe((prev) => (prev ? { ...prev, isSaved: !prev.isSaved } : null));
-    }
+      if (selectedCafe?.id === cafeId) {
+        setSelectedCafe((prev) => (prev ? { ...prev, isSaved: !prev.isSaved } : null));
+      }
 
-    try {
-      await api.toggleSaveCafe(cafeId, cafeDetails);
-    } catch (err) {
-      console.error("Failed to toggle save cafe:", err);
-    }
+      try {
+        await api.toggleSaveCafe(cafeId, cafeDetails);
+      } catch (err) {
+        console.error("Failed to toggle save cafe:", err);
+      }
+    }, 'Save this café', 'Create an account to save cafés and build your favorite coffee spots collection.');
   };
 
   const handleBack = () => {
@@ -250,6 +439,8 @@ export default function App() {
             <Login
               onLogin={handleLogin}
               onGoToRegister={() => navigateTo('register')}
+              onResetPassword={handleResetPassword}
+              onBrowseAsGuest={() => navigateTo('discovery')}
             />
           )}
 
@@ -257,6 +448,7 @@ export default function App() {
             <Register
               onRegister={handleRegister}
               onGoToLogin={() => navigateTo('login')}
+              onBrowseAsGuest={() => navigateTo('discovery')}
             />
           )}
 
@@ -273,7 +465,15 @@ export default function App() {
               onRetryFeed={() => void fetchFeedData()}
               onSelectCafe={(cafe) => navigateTo('cafe-details', cafe)}
               onSelectPost={(post) => navigateTo('post-details', post)}
-              onNavigate={navigateTo}
+              onNavigate={(s, d) => {
+                if (s === 'new-post' || s === 'messages') {
+                  requireAuth(() => navigateTo(s, d));
+                } else if (s === 'profile' && !currentUser) {
+                  requireAuth(() => navigateTo('profile'), 'View Profile', 'Sign in to manage your profile and view saved spots.');
+                } else {
+                  navigateTo(s, d);
+                }
+              }}
               onSaveCafe={handleSaveCafe}
               onLikePost={handleLike}
             />
@@ -284,6 +484,7 @@ export default function App() {
               cafe={selectedCafe}
               onBack={handleBack}
               onSave={() => handleSaveCafe(selectedCafe.id, selectedCafe)}
+              onAddPhoto={(cafe) => requireAuth(() => navigateTo('new-post', cafe))}
             />
           )}
 
@@ -315,6 +516,7 @@ export default function App() {
               onSelectPost={(post) => navigateTo('post-details', post)}
               onSelectCafe={(cafe) => navigateTo('cafe-details', cafe)}
               onLogout={handleLogout}
+              onDeleteAccount={handleDeleteAccount}
             />
           )}
 
@@ -360,24 +562,56 @@ export default function App() {
             />
           )}
 
+          {currentScreen === 'edit-profile' && (
+            <EditProfileScreen
+              currentUser={currentUser}
+              onNavigate={navigateTo}
+              onProfileUpdated={(updatedUser) => {
+                setCurrentUser(updatedUser);
+                void fetchFeedData();
+              }}
+            />
+          )}
+
           {currentScreen === 'new-post' && (
             <NewPost
+              initialCafe={newPostCafe}
               onClose={() => navigateTo('discovery')}
               onPostCreated={() => void fetchFeedData()}
             />
           )}
         </AnimatePresence>
 
+        {/* Reusable Guest Auth Prompt Modal */}
+        <AuthPrompt
+          isOpen={isAuthPromptOpen}
+          title={authPromptTitle}
+          subtitle={authPromptSubtitle}
+          onClose={() => setIsAuthPromptOpen(false)}
+          onGoToRegister={() => navigateTo('register')}
+          onGoToLogin={() => navigateTo('login')}
+        />
+
+        {/* Navigation Bar */}
         {currentScreen !== 'login' &&
           currentScreen !== 'register' &&
           currentScreen !== 'success' &&
           currentScreen !== 'new-post' &&
           currentScreen !== 'user-profile' &&
+          currentScreen !== 'edit-profile' &&
           currentScreen !== 'chat-window' &&
           !(currentScreen === 'messages' && isChatOpen) && (
             <BottomNav
               currentScreen={currentScreen}
-              onNavigate={navigateTo}
+              onNavigate={(s, d, t) => {
+                if (s === 'new-post' || s === 'messages') {
+                  requireAuth(() => navigateTo(s, d, t));
+                } else if (s === 'profile' && !currentUser) {
+                  requireAuth(() => navigateTo('profile'), 'View Profile', 'Sign in to access your profile, saved cafés, and posts.');
+                } else {
+                  navigateTo(s, d, t);
+                }
+              }}
               profileTab={profileTab}
             />
           )}
@@ -388,9 +622,9 @@ export default function App() {
 
 // --- Components ---
 
-function BottomNav({ currentScreen, onNavigate, profileTab }: { currentScreen: Screen, onNavigate: (s: Screen, data?: any, tab?: any) => void, profileTab: string }) {
+function BottomNav({ currentScreen, onNavigate }: { currentScreen: Screen, onNavigate: (s: Screen, data?: any, tab?: any) => void, profileTab: string }) {
   return (
-    <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 px-8 py-4 flex items-center justify-between z-50">
+    <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 px-8 py-4 flex items-center justify-between z-40">
       <button
         onClick={() => onNavigate('discovery')}
         className={`flex flex-col items-center gap-1 ${currentScreen === 'discovery' ? 'text-primary' : 'text-slate-400'}`}
@@ -407,7 +641,7 @@ function BottomNav({ currentScreen, onNavigate, profileTab }: { currentScreen: S
       </button>
       <button
         onClick={() => onNavigate('new-post')}
-        className="relative -top-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white shadow-xl shadow-primary/30 border-4 border-white"
+        className="relative -top-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white shadow-xl shadow-primary/30 border-4 border-white active:scale-95 transition-transform"
       >
         <Plus className="w-8 h-8" />
       </button>

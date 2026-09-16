@@ -349,7 +349,7 @@ def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dic
     """
     Transform DB post + stats into frontend camelCase format.
     """
-    author = post.get("users")
+    author = post.get("profiles") or post.get("users")
     if not author and post.get("user_id"):
         author = user_repository.get_user_by_id(post["user_id"])
 
@@ -360,8 +360,8 @@ def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dic
         "imageUrl": post.get("image_url", ""),
         "author": {
             "id": (author.get("id") if author else None) or post.get("user_id"),
-            "name": author.get("name", "Coffee Enthusiast") if author else "Coffee Enthusiast",
-            "profile": (author.get("profile") or author.get("avatar") or "") if author else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+            "name": (author.get("display_name") or author.get("name") or author.get("username") or "Coffee Enthusiast") if author else "Coffee Enthusiast",
+            "profile": (author.get("avatar_url") or author.get("profile") or author.get("avatar") or "") if author else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
         },
         "location": post.get("location"),
         "rating": float(post["rating"]) if post.get("rating") else None,
@@ -391,11 +391,11 @@ def _format_comment(comment: dict) -> dict:
         "post_id": comment.get("post_id"),
         "user_id": comment.get("user_id"),
         "parent_id": comment.get("parent_id"),
-        "text": comment["text"],
+        "text": comment.get("body") or comment.get("text") or "",
         "author": {
             "id": (author.get("id") if author else None) or comment.get("user_id"),
-            "name": author.get("name", "unknown") if author else "unknown",
-            "profile": (author.get("profile") or author.get("avatar") or "") if author else "",
+            "name": (author.get("display_name") or author.get("name") or "User") if author else "User",
+            "profile": (author.get("avatar_url") or author.get("profile") or author.get("avatar") or "") if author else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
         },
         "timestamp": _relative_time(comment.get("created_at")),
         "created_at": comment.get("created_at"),

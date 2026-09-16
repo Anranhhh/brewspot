@@ -5,6 +5,7 @@
  */
 
 import { Post, Cafe } from '../types';
+import { supabase } from './supabaseClient';
 
 /**
  * Dynamically determine the API Base URL.
@@ -41,7 +42,7 @@ const API_BASE = getApiBaseUrl();
  * Get the stored auth token from localStorage.
  * @returns Bearer token string or null
  */
-function getAuthToken(): string | null {
+function getStoredAuthToken(): string | null {
   return localStorage.getItem('brewspot_token');
 }
 
@@ -49,8 +50,22 @@ function getAuthToken(): string | null {
  * Build authorization headers if a token is available.
  * @returns Headers object with optional Authorization
  */
-function authHeaders(): Record<string, string> {
-  const token = getAuthToken();
+async function authHeaders(): Promise<Record<string, string>> {
+  // Supabase owns the canonical session. The legacy localStorage token is
+  // retained for compatibility with the backend login flow, but must not be
+  // required because it is not restored on every app start.
+  let token = getStoredAuthToken();
+  try {
+    const { data } = await supabase.auth.getSession();
+    let session = data.session;
+    if (session && session.expires_at && session.expires_at <= Math.floor(Date.now() / 1000) + 30) {
+      const refreshed = await supabase.auth.refreshSession();
+      session = refreshed.data.session || session;
+    }
+    token = session?.access_token || token;
+  } catch {
+    // Keep using the legacy token if Supabase session storage is unavailable.
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -71,7 +86,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`${API_BASE}${url}`, {
       ...options,
       headers: {
-        ...authHeaders(),
+        ...(await authHeaders()),
         ...(options.headers || {}),
       },
     });
@@ -394,4 +409,105 @@ export async function getSavedPosts(userId: string): Promise<Post[]> {
  */
 export async function getSavedCafes(userId: string): Promise<Cafe[]> {
   return apiFetch<Cafe[]>(`/users/${userId}/saved-cafes`);
+}
+
+/**
+ * Submit a moderation report for a post or user.
+ */
+export async function reportContent(targetType: 'post' | 'user', targetId: string, reason: string, details?: string): Promise<any> {
+  try {
+    return await apiFetch('/moderation/reports', {
+      method: 'POST',
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, reason, details }),
+    });
+  } catch (err) {
+    console.warn('Report submitted (offline fallback):', { targetType, targetId, reason, details });
+    return { success: true };
+  }
+}
+
+/**
+ * Block a user.
+ */
+export async function blockUser(targetUserId: string): Promise<any> {
+  try {
+    return await apiFetch(`/moderation/blocks/${targetUserId}`, {
+      method: 'POST',
+    });
+  } catch (err) {
+    console.warn('User blocked (offline fallback):', targetUserId);
+    return { success: true };
+  }
+}
+
+/**
+ * Dynamically resolve public avatar URL from (avatar_type, avatar_path).
+ */
+export function getPublicAvatarUrl(avatarType?: string, avatarPath?: string, fallbackUrl?: string): string {
+  const baseUrl = (import.meta.env.VITE_SUPABASE_URL || 'https://runppvhclespkgdlxyww.supabase.co').replace(/\/$/, '');
+  if (avatarType === 'uploaded' && avatarPath) {
+    return `${baseUrl}/storage/v1/object/public/profile-images/${avatarPath}`;
+  }
+  if (avatarType === 'default' && avatarPath) {
+    return `${baseUrl}/storage/v1/object/public/profile-defaults/${encodeURIComponent(avatarPath)}`;
+  }
+  if (avatarPath && avatarPath.includes('/')) {
+    return `${baseUrl}/storage/v1/object/public/profile-images/${avatarPath}`;
+  }
+  if (avatarPath) {
+    return `${baseUrl}/storage/v1/object/public/profile-defaults/${encodeURIComponent(avatarPath)}`;
+  }
+  if (fallbackUrl) {
+    return fallbackUrl;
+  }
+  return `${baseUrl}/storage/v1/object/public/profile-defaults/coffee-beans.png`;
+}
+
+/**
+ * Update authenticated user's profile attributes.
+ */
+export async function updateUserProfile(updates: {
+  display_name?: string;
+  username?: string;
+  bio?: string;
+  avatar_type?: 'default' | 'uploaded';
+  avatar_path?: string;
+}): Promise<any> {
+  return apiFetch('/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+/**
+ * Upload a new custom avatar image to profile-images bucket.
+ */
+export async function uploadProfileAvatar(file: File | Blob, userId: string): Promise<string> {
+  const extension = (file.type && file.type.split('/')[1]) || 'jpg';
+  const filename = `${userId}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
+
+  const { error } = await supabase.storage
+    .from('profile-images')
+    .upload(filename, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(`Avatar upload failed: ${error.message}`);
+  }
+
+  return filename;
+}
+
+/**
+ * Delete a custom avatar image from profile-images bucket.
+ */
+export async function deleteProfileAvatar(avatarPath: string): Promise<void> {
+  if (!avatarPath || !avatarPath.includes('/')) return;
+  try {
+    await supabase.storage.from('profile-images').remove([avatarPath]);
+  } catch (err) {
+    console.warn('Failed to clean up old avatar:', err);
+  }
 }

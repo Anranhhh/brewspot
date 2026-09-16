@@ -69,12 +69,50 @@ def _resolve_or_create_user_id(identifier: str, display_name: str | None = None,
 
 def get_notifications(user_id: str) -> list[dict]:
     client = get_supabase_client()
+    raw_data = []
     try:
-        response = client.table("notifications").select("*, actor:users!actor_id(name, profile)").eq("user_id", user_id).order("created_at", desc=True).execute()
-        return response.data or []
+        response = client.table("notifications").select("*, actor:profiles!actor_id(id, username, display_name, avatar_url)").eq("user_id", user_id).order("created_at", desc=True).execute()
+        raw_data = response.data or []
     except Exception as e:
-        logger.error(f"Error fetching notifications: {e}")
-        return []
+        logger.warning(f"Error fetching notifications with profiles fkey: {e}. Trying fallback.")
+        try:
+            response = client.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+            raw_data = response.data or []
+        except Exception as inner_e:
+            logger.error(f"Error fetching notifications fallback: {inner_e}")
+            return []
+
+    # Format actor user object for frontend consumption
+    formatted = []
+    for notif in raw_data:
+        actor = notif.get("actor")
+        actor_id = notif.get("actor_id")
+        if not actor and actor_id:
+            try:
+                actor = user_repository.get_user_by_id(actor_id)
+            except Exception:
+                pass
+
+        actor_name = (actor.get("display_name") or actor.get("name") or actor.get("username") or "BrewSpot User") if isinstance(actor, dict) else "BrewSpot User"
+        actor_profile = (actor.get("avatar_url") or actor.get("profile") or "") if isinstance(actor, dict) else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+
+        formatted.append({
+            "id": notif.get("id"),
+            "user_id": notif.get("user_id"),
+            "actor_id": actor_id,
+            "action": notif.get("action") or notif.get("type") or "interacted with your content",
+            "text": notif.get("text", ""),
+            "target": notif.get("target"),
+            "system": bool(notif.get("system")),
+            "read": bool(notif.get("read")),
+            "created_at": notif.get("created_at"),
+            "actor": {
+                "id": actor_id,
+                "name": actor_name,
+                "profile": actor_profile,
+            }
+        })
+    return formatted
 
 
 def create_notification(user_id: str, action: str, text: str = "", target: str | None = None, actor_id: str | None = None, system: bool = False) -> dict | None:

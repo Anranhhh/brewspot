@@ -1,5 +1,5 @@
 """
-Post repository — database access for posts, post_likes, post_saves,
+Post repository — database access for posts, post_likes, saved_posts,
 comments, and the post_stats view.
 """
 
@@ -17,30 +17,45 @@ def get_all_posts() -> list[dict]:
     @returns list of post dicts
     """
     client = get_supabase_client()
-    response = (
-        client.table("posts")
-        .select("*, users!posts_user_id_fkey(id, name, profile)")
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return response.data
+    try:
+        response = (
+            client.table("posts")
+            .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url)")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
+    except Exception as e:
+        logger.warning(f"Failed to fetch posts with profiles fkey: {e}. Trying fallback.")
+        response = (
+            client.table("posts")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
 
 
 def get_post_by_id(post_id: str) -> dict | None:
     """
-    Fetch a single post by UUID, including author info.
+    Fetch a single post by UUID, including author profile info.
     @param post_id Post UUID
-    @returns post dict with nested user or None
+    @returns post dict or None
     """
     client = get_supabase_client()
-    response = (
-        client.table("posts")
-        .select("*, users!posts_user_id_fkey(id, name, profile)")
-        .eq("id", post_id)
-        .execute()
-    )
-    if response.data:
-        return response.data[0]
+    try:
+        response = (
+            client.table("posts")
+            .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url)")
+            .eq("id", post_id)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+    except Exception:
+        response = client.table("posts").select("*").eq("id", post_id).execute()
+        if response.data:
+            return response.data[0]
     return None
 
 
@@ -51,33 +66,53 @@ def get_posts_by_user(user_id: str) -> list[dict]:
     @returns list of post dicts
     """
     client = get_supabase_client()
-    response = (
-        client.table("posts")
-        .select("*, users!posts_user_id_fkey(id, name, profile)")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return response.data
+    try:
+        response = (
+            client.table("posts")
+            .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url)")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
+    except Exception:
+        response = (
+            client.table("posts")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
 
 
 def get_posts_by_ids(post_ids: list[str]) -> list[dict]:
     """
-    Fetch posts by ID, including author info.
+    Fetch posts by ID list.
     @param post_ids Post UUIDs
     @returns list of post dicts
     """
     if not post_ids:
         return []
     client = get_supabase_client()
-    response = (
-        client.table("posts")
-        .select("*, users!posts_user_id_fkey(id, name, profile)")
-        .in_("id", post_ids)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return response.data
+    try:
+        response = (
+            client.table("posts")
+            .select("*, profiles!posts_user_id_fkey(id, username, display_name, avatar_url)")
+            .in_("id", post_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
+    except Exception:
+        response = (
+            client.table("posts")
+            .select("*")
+            .in_("id", post_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
 
 
 def create_post(
@@ -86,15 +121,10 @@ def create_post(
     location: str | None = None,
     rating: float | None = None,
     caption: str | None = None,
+    google_place_id: str | None = None,
 ) -> dict:
     """
-    Insert a new post.
-    @param user_id Author UUID
-    @param image_url URL of the post image
-    @param location Optional location text
-    @param rating Optional aesthetic rating (0-5)
-    @param caption Optional caption text
-    @returns created post dict
+    Insert a new post record into public.posts.
     """
     client = get_supabase_client()
     payload: dict = {"user_id": user_id, "image_url": image_url}
@@ -104,20 +134,21 @@ def create_post(
         payload["rating"] = rating
     if caption:
         payload["caption"] = caption
+    if google_place_id:
+        payload["google_place_id"] = google_place_id
+
     response = client.table("posts").insert(payload).execute()
     return response.data[0]
 
 
 def delete_post(post_id: str) -> bool:
     """
-    Delete a post and its associated likes, saves, and comments from Supabase DB.
-    @param post_id Post UUID
-    @returns True if deleted successfully
+    Delete a post and associated likes, saved posts, and comments.
     """
     client = get_supabase_client()
     try:
         client.table("post_likes").delete().eq("post_id", post_id).execute()
-        client.table("post_saves").delete().eq("post_id", post_id).execute()
+        client.table("saved_posts").delete().eq("post_id", post_id).execute()
         client.table("comments").delete().eq("post_id", post_id).execute()
     except Exception as e:
         logger.warning(f"Error cleaning up post associations for {post_id}: {e}")
@@ -130,49 +161,43 @@ def delete_post(post_id: str) -> bool:
 
 def get_post_stats(post_id: str) -> dict:
     """
-    Fetch aggregate stats (likes, saves, comments) from the post_stats view.
-    @param post_id Post UUID
-    @returns dict with likes_count, saves_count, comments_count
+    Fetch aggregate stats (likes, saves, comments) from database.
     """
     client = get_supabase_client()
-    response = (
-        client.table("post_stats")
-        .select("*")
-        .eq("post_id", post_id)
-        .execute()
-    )
-    if response.data:
-        return response.data[0]
-    return {"post_id": post_id, "likes_count": 0, "saves_count": 0, "comments_count": 0}
+    try:
+        likes_res = client.table("post_likes").select("user_id", count="exact").eq("post_id", post_id).execute()
+        try:
+            saves_res = client.table("saved_posts").select("user_id", count="exact").eq("post_id", post_id).execute()
+        except Exception:
+            # Legacy schema uses post_saves.
+            saves_res = client.table("post_saves").select("user_id", count="exact").eq("post_id", post_id).execute()
+        comments_res = client.table("comments").select("id", count="exact").eq("post_id", post_id).execute()
+        
+        return {
+            "post_id": post_id,
+            "likes_count": likes_res.count if likes_res.count is not None else len(likes_res.data),
+            "saves_count": saves_res.count if saves_res.count is not None else len(saves_res.data),
+            "comments_count": comments_res.count if comments_res.count is not None else len(comments_res.data),
+        }
+    except Exception:
+        return {"post_id": post_id, "likes_count": 0, "saves_count": 0, "comments_count": 0}
 
 
 def get_bulk_post_stats(post_ids: list[str]) -> dict[str, dict]:
     """
     Fetch stats for multiple posts at once.
-    @param post_ids List of post UUIDs
-    @returns dict mapping post_id to stats
     """
     if not post_ids:
         return {}
-    client = get_supabase_client()
-    response = (
-        client.table("post_stats")
-        .select("*")
-        .in_("post_id", post_ids)
-        .execute()
-    )
-    return {row["post_id"]: row for row in response.data}
+    res_map: dict[str, dict] = {}
+    for pid in post_ids:
+        res_map[pid] = get_post_stats(pid)
+    return res_map
 
 
 # --- Likes ---
 
 def is_post_liked(user_id: str, post_id: str) -> bool:
-    """
-    Check if a user has liked a post.
-    @param user_id User UUID
-    @param post_id Post UUID
-    @returns True if liked
-    """
     client = get_supabase_client()
     response = (
         client.table("post_likes")
@@ -185,31 +210,16 @@ def is_post_liked(user_id: str, post_id: str) -> bool:
 
 
 def toggle_post_like(user_id: str, post_id: str) -> bool:
-    """
-    Toggle like state for a post. Returns new liked state.
-    @param user_id User UUID
-    @param post_id Post UUID
-    @returns True if now liked, False if unliked
-    """
     client = get_supabase_client()
     if is_post_liked(user_id, post_id):
-        client.table("post_likes").delete().eq(
-            "user_id", user_id
-        ).eq("post_id", post_id).execute()
+        client.table("post_likes").delete().eq("user_id", user_id).eq("post_id", post_id).execute()
         return False
     else:
-        client.table("post_likes").insert(
-            {"user_id": user_id, "post_id": post_id}
-        ).execute()
+        client.table("post_likes").insert({"user_id": user_id, "post_id": post_id}).execute()
         return True
 
 
 def get_liked_post_ids(user_id: str) -> list[str]:
-    """
-    Get all post IDs liked by a user.
-    @param user_id User UUID
-    @returns list of post ID strings
-    """
     client = get_supabase_client()
     response = (
         client.table("post_likes")
@@ -223,106 +233,76 @@ def get_liked_post_ids(user_id: str) -> list[str]:
 # --- Saves ---
 
 def is_post_saved(user_id: str, post_id: str) -> bool:
-    """
-    Check if a user has saved a post.
-    @param user_id User UUID
-    @param post_id Post UUID
-    @returns True if saved
-    """
     client = get_supabase_client()
-    response = (
-        client.table("post_saves")
-        .select("user_id")
-        .eq("user_id", user_id)
-        .eq("post_id", post_id)
-        .execute()
-    )
+    try:
+        response = client.table("saved_posts").select("user_id").eq("user_id", user_id).eq("post_id", post_id).execute()
+    except Exception:
+        response = client.table("post_saves").select("user_id").eq("user_id", user_id).eq("post_id", post_id).execute()
     return len(response.data) > 0
 
 
 def toggle_post_save(user_id: str, post_id: str) -> bool:
-    """
-    Toggle save state for a post. Returns new saved state.
-    @param user_id User UUID
-    @param post_id Post UUID
-    @returns True if now saved, False if unsaved
-    """
     client = get_supabase_client()
     if is_post_saved(user_id, post_id):
-        client.table("post_saves").delete().eq(
-            "user_id", user_id
-        ).eq("post_id", post_id).execute()
+        try:
+            client.table("saved_posts").delete().eq("user_id", user_id).eq("post_id", post_id).execute()
+        except Exception:
+            client.table("post_saves").delete().eq("user_id", user_id).eq("post_id", post_id).execute()
         return False
     else:
-        client.table("post_saves").insert(
-            {"user_id": user_id, "post_id": post_id}
-        ).execute()
+        try:
+            client.table("saved_posts").insert({"user_id": user_id, "post_id": post_id}).execute()
+        except Exception:
+            client.table("post_saves").insert({"user_id": user_id, "post_id": post_id}).execute()
         return True
 
 
 def get_saved_post_ids(user_id: str) -> list[str]:
-    """
-    Get all post IDs saved by a user.
-    @param user_id User UUID
-    @returns list of post ID strings
-    """
     client = get_supabase_client()
-    response = (
-        client.table("post_saves")
-        .select("post_id")
-        .eq("user_id", user_id)
-        .execute()
-    )
+    try:
+        response = client.table("saved_posts").select("post_id").eq("user_id", user_id).execute()
+    except Exception:
+        response = client.table("post_saves").select("post_id").eq("user_id", user_id).execute()
     return [row["post_id"] for row in response.data]
 
 
 # --- Comments ---
 
 def get_comments_for_post(post_id: str) -> list[dict]:
-    """
-    Fetch all comments for a post, with author info.
-    @param post_id Post UUID
-    @returns list of comment dicts
-    """
     client = get_supabase_client()
-    response = (
-        client.table("comments")
-        .select("*, users!comments_user_id_fkey(id, name, profile)")
-        .eq("post_id", post_id)
-        .order("created_at", desc=False)
-        .execute()
-    )
-    return response.data
+    try:
+        response = (
+            client.table("comments")
+            .select("*, profiles!comments_user_id_fkey(id, username, display_name, avatar_url)")
+            .eq("post_id", post_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return response.data
+    except Exception:
+        response = (
+            client.table("comments")
+            .select("*")
+            .eq("post_id", post_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return response.data
 
 
 def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None = None) -> dict:
-    """
-    Insert a new comment on a post.
-    @param post_id Post UUID
-    @param user_id Commenter UUID
-    @param text Comment text
-    @param parent_id Optional parent comment UUID for replies
-    @returns created comment dict with author info
-    """
     client = get_supabase_client()
-    payload = {"post_id": post_id, "user_id": user_id, "text": text}
+    payload = {"post_id": post_id, "user_id": user_id, "body": text}
     if parent_id:
         payload["parent_id"] = parent_id
 
     try:
-        response = (
-            client.table("comments")
-            .insert(payload)
-            .execute()
-        )
+        response = client.table("comments").insert(payload).execute()
     except Exception as e:
-        if parent_id and "parent_id" in str(e):
-            payload.pop("parent_id", None)
-            response = (
-                client.table("comments")
-                .insert(payload)
-                .execute()
-            )
+        if "body" in str(e):
+            payload["text"] = text
+            payload.pop("body", None)
+            response = client.table("comments").insert(payload).execute()
         else:
             raise e
 
@@ -332,7 +312,7 @@ def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None 
         try:
             res = (
                 client.table("comments")
-                .select("*, users!comments_user_id_fkey(id, name, profile)")
+                .select("*, profiles!comments_user_id_fkey(id, username, display_name, avatar_url)")
                 .eq("id", comment_id)
                 .execute()
             )
@@ -345,29 +325,24 @@ def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None 
 
 
 def get_comment_by_id(comment_id: str) -> dict | None:
-    """
-    Fetch a single comment by UUID, including author info.
-    @param comment_id Comment UUID
-    @returns comment dict or None
-    """
     client = get_supabase_client()
-    response = (
-        client.table("comments")
-        .select("*, users!comments_user_id_fkey(id, name, profile)")
-        .eq("id", comment_id)
-        .execute()
-    )
-    if response.data:
-        return response.data[0]
+    try:
+        response = (
+            client.table("comments")
+            .select("*, profiles!comments_user_id_fkey(id, username, display_name, avatar_url)")
+            .eq("id", comment_id)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+    except Exception:
+        response = client.table("comments").select("*").eq("id", comment_id).execute()
+        if response.data:
+            return response.data[0]
     return None
 
 
 def delete_comment_by_id(comment_id: str) -> bool:
-    """
-    Delete a comment from the comments table.
-    @param comment_id Comment UUID
-    @returns True if deleted
-    """
     client = get_supabase_client()
     client.table("comments").delete().eq("id", comment_id).execute()
     return True

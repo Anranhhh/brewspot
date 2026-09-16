@@ -1,9 +1,14 @@
-export type Screen = 'login' | 'register' | 'discovery' | 'cafe-details' | 'profile' | 'user-profile' | 'new-post' | 'messages' | 'chat-window' | 'post-details' | 'explore' | 'success';
+export type Screen = 'login' | 'register' | 'discovery' | 'cafe-details' | 'profile' | 'user-profile' | 'edit-profile' | 'new-post' | 'messages' | 'chat-window' | 'post-details' | 'explore' | 'success';
 
 export interface Author {
   id?: string;
   name: string;
+  display_name?: string;
+  username?: string;
   profile: string;
+  avatar_type?: 'default' | 'uploaded';
+  avatar_path?: string;
+  bio?: string;
 }
 
 export interface Post {

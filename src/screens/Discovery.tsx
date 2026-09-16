@@ -37,7 +37,7 @@ export default function Discovery({
 }: DiscoveryScreenProps) {
     const categories = ['Minimal', 'Cozy', 'Luxury', 'Study-Friendly', 'Outdoor'];
     const [activeCategory, setActiveCategory] = useState('Minimal');
-    
+
     // inputQuery tracks current typed text; activeSearch tracks committed query submitted on Enter
     const [inputQuery, setInputQuery] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
@@ -137,7 +137,7 @@ export default function Discovery({
                     )}
                 </div>
             )}
-
+            {/*
             {!query && (
                 <div className="overflow-x-auto no-scrollbar py-6 px-6 flex items-center gap-2 whitespace-nowrap">
                     {categories.map((cat) => (
@@ -153,7 +153,7 @@ export default function Discovery({
                         </button>
                     ))}
                 </div>
-            )}
+            )}*/}
 
             <main className="flex-1">
                 {/* Trending Cafes Section */}
@@ -163,7 +163,7 @@ export default function Discovery({
                             <h2 className="text-xl font-bold">
                                 {query ? `Matching Spots (${filteredCafes.length})` : 'Trending Now'}
                             </h2>
-                            <button className="text-[#E14D4D] text-sm font-semibold">See All</button>
+                            {/*<button className="text-[#E14D4D] text-sm font-semibold">See All</button>*/}
                         </div>
 
                         {isLoading && (
@@ -186,7 +186,7 @@ export default function Discovery({
                                         onClick={() => onSelectCafe(cafe)}
                                     >
                                         <div className="relative h-[360px] rounded-lg overflow-hidden shadow-xl">
-                                            <img src={cafe.heroImage} className="w-full h-full object-cover" alt={cafe.name} />
+                                            <img src={cafe.heroImage || undefined} className="w-full h-full object-cover" alt={cafe.name} />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
 
                                             <div className="absolute bottom-5 left-5 right-5 text-white">
@@ -244,7 +244,7 @@ export default function Discovery({
                                     onClick={() => onSelectPost(post)}
                                     className="break-inside-avoid relative rounded-lg overflow-hidden shadow-sm border border-slate-100 bg-white group cursor-pointer hover:shadow-md transition-all"
                                 >
-                                    <img src={post.imageUrl} className="w-full object-cover" alt="Inspiration" />
+                                                    <img src={post.imageUrl || undefined} className="w-full object-cover" alt="Inspiration" />
                                     <div className="p-3 bg-white">
                                         {post.caption && (
                                             <p className="text-xs font-semibold text-slate-800 line-clamp-2 mb-2 leading-snug">

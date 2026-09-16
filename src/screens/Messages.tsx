@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef, FormEvent } from 'react';
 import * as api from '../services/api';
 
+import { supabase } from '../services/supabaseClient';
+
 type MessagesScreenProps = {
     onBack: () => void;
     currentUser: { id: string; name: string; profile: string | null } | null;
@@ -48,7 +50,30 @@ export default function Messages({ onBack, currentUser, initialRecipient, onChat
             }
         }
         fetchData();
-    }, []);
+
+        // Subscribe to live inserts on direct_messages and notifications
+        const channel = supabase
+            .channel(`messages_screen_${currentUser?.id || 'guest'}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'direct_messages' },
+                () => {
+                    fetchData();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'notifications' },
+                () => {
+                    fetchData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [currentUser]);
 
     // Load active conversation when activeChatUser changes
     useEffect(() => {

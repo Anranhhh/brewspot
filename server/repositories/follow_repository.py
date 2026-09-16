@@ -52,7 +52,7 @@ def is_following(follower_id: str, following_id: str) -> bool:
     try:
         res = (
             client.table("follows")
-            .select("id")
+            .select("follower_id")
             .eq("follower_id", follower_id)
             .eq("following_id", following_id)
             .execute()
@@ -77,7 +77,7 @@ def count_followers(user_id: str) -> int:
     try:
         res = (
             client.table("follows")
-            .select("id", count="exact")
+            .select("follower_id", count="exact")
             .eq("following_id", user_id)
             .execute()
         )
@@ -100,7 +100,7 @@ def count_following(user_id: str) -> int:
     try:
         res = (
             client.table("follows")
-            .select("id", count="exact")
+            .select("following_id", count="exact")
             .eq("follower_id", user_id)
             .execute()
         )
@@ -124,7 +124,6 @@ def add_follow(follower_id: str, following_id: str) -> dict:
 
     now_iso = datetime.now(timezone.utc).isoformat()
     new_entry = {
-        "id": str(uuid.uuid4()),
         "follower_id": follower_id,
         "following_id": following_id,
         "created_at": now_iso,
