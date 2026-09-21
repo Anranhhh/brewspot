@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import * as api from './services/api';
 import { supabase } from './services/supabaseClient';
 import {
@@ -616,6 +617,7 @@ export default function App() {
             />
           )}
       </div>
+      <Analytics />
     </div>
   );
 }
