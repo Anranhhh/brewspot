@@ -51,11 +51,12 @@ export default function App() {
     setIsLoadingFeed(true);
     setFeedError(null);
     try {
-      const [fetchedCafes, fetchedPosts] = await Promise.all([
+      const [fetchedCafes, fetchedPosts, trendingCafes] = await Promise.all([
         api.getCafes(),
         api.getPosts(),
+        api.getTrendingCafes().catch(() => [] as Cafe[]),
       ]);
-      setCafes(fetchedCafes);
+      setCafes(trendingCafes.length ? trendingCafes : fetchedCafes);
       setPosts(fetchedPosts);
     } catch (err) {
       console.error('Failed to fetch feed data:', err);
@@ -483,6 +484,7 @@ export default function App() {
           {currentScreen === 'cafe-details' && selectedCafe && (
             <CafeDetails
               cafe={selectedCafe}
+              communityPosts={posts.filter((post) => post.cafeId === selectedCafe.id)}
               onBack={handleBack}
               onSave={() => handleSaveCafe(selectedCafe.id, selectedCafe)}
               onAddPhoto={(cafe) => requireAuth(() => navigateTo('new-post', cafe))}

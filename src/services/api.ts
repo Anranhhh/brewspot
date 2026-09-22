@@ -186,6 +186,28 @@ export async function getCafes(): Promise<Cafe[]> {
   return apiFetch<Cafe[]>('/cafes');
 }
 
+export async function searchCafes(query: string): Promise<Cafe[]> {
+  return apiFetch<Cafe[]>(`/cafes/search?q=${encodeURIComponent(query)}`);
+}
+
+export async function getTrendingCafes(): Promise<Cafe[]> {
+  return apiFetch<Cafe[]>('/cafes/trending');
+}
+
+export async function createCafeFromGoogle(data: {
+  google_place_id: string;
+  name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  google_rating?: number;
+  google_rating_count?: number;
+  price_level?: string;
+  cafe_type?: string;
+}): Promise<Cafe> {
+  return apiFetch<Cafe>('/cafes', { method: 'POST', body: JSON.stringify(data) });
+}
+
 /**
  * Fetch a single cafe by ID.
  * @param cafeId Cafe UUID
@@ -234,6 +256,9 @@ export async function getPostById(postId: string): Promise<Post> {
  */
 export async function createPost(data: {
   image_url: string;
+  cafe_id: string;
+  media_urls?: string[];
+  title?: string;
   location?: string;
   rating?: number;
   caption?: string;

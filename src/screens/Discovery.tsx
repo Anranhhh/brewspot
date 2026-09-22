@@ -59,9 +59,10 @@ export default function Discovery({
         if (!post) return false;
         if (!query) return true;
         const captionMatch = Boolean(post.caption?.toLowerCase().includes(query));
+        const titleMatch = Boolean(post.title?.toLowerCase().includes(query));
         const locationMatch = Boolean(post.location?.toLowerCase().includes(query));
         const authorMatch = Boolean(post.author?.name?.toLowerCase().includes(query));
-        return captionMatch || locationMatch || authorMatch;
+        return titleMatch || captionMatch || locationMatch || authorMatch;
     });
 
     const filteredCafes = (cafes || []).filter((cafe) => {
@@ -246,8 +247,11 @@ export default function Discovery({
                                 >
                                                     <img src={post.imageUrl || undefined} className="w-full object-cover" alt="Inspiration" />
                                     <div className="p-3 bg-white">
+                                        {post.title && (
+                                            <h3 className="text-sm font-bold text-slate-900 mb-1">{post.title}</h3>
+                                        )}
                                         {post.caption && (
-                                            <p className="text-xs font-semibold text-slate-800 line-clamp-2 mb-2 leading-snug">
+                                            <p className="text-xs font-semibold text-slate-800 line-clamp-2 mb-2 leading-snug whitespace-pre-wrap">
                                                 {post.caption}
                                             </p>
                                         )}

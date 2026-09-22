@@ -14,8 +14,10 @@ export interface Author {
 export interface Post {
   id: string;
   imageUrl: string;
+  mediaUrls?: string[];
   author?: Author;
   location?: string;
+  title?: string;
   rating?: number;
   likes?: number;
   comments?: number;
@@ -24,6 +26,7 @@ export interface Post {
   isSaved?: boolean;
   timestamp?: string;
   caption?: string;
+  cafeId?: string;
 }
 
 export interface Cafe {
@@ -41,6 +44,13 @@ export interface Cafe {
   isSaved?: boolean;
   latitude?: number;
   longitude?: number;
+  googlePlaceId?: string;
+  googleRating?: number;
+  googleRatingCount?: number;
+  communityRating?: number;
+  communityRatingCount?: number;
+  postCount?: number;
+  source?: string;
 }
 
 export type ProfileTab = 'posts' | 'liked' | 'saved' | 'shops';

@@ -4,7 +4,9 @@ Cafe API — request parsing and response encapsulation for cafes.
 
 import logging
 from flask import Blueprint, request, jsonify
+from pydantic import ValidationError
 from server.services import cafe_service, auth_service
+from server.schemas import CreateCafeRequest
 
 logger = logging.getLogger(__name__)
 cafe_bp = Blueprint("cafes", __name__, url_prefix="/api/cafes")
@@ -32,6 +34,35 @@ def list_cafes():
     user_id = _get_current_user_id()
     cafes = cafe_service.get_cafes(user_id)
     return jsonify(cafes), 200
+
+
+@cafe_bp.route("/search", methods=["GET"])
+def search_cafes():
+    query = (request.args.get("q") or "").strip()
+    if len(query) < 2:
+        return jsonify([]), 200
+    return jsonify(cafe_service.search_cafes(query, _get_current_user_id())), 200
+
+
+@cafe_bp.route("/trending", methods=["GET"])
+def trending_cafes():
+    return jsonify([cafe_service._format_cafe(c, False) for c in cafe_service.cafe_repository.get_trending_cafes()]), 200
+
+
+@cafe_bp.route("", methods=["POST"])
+def create_cafe():
+    user_id = _get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Authentication required"}), 401
+    try:
+        body = CreateCafeRequest(**(request.get_json(silent=True) or {}))
+        cafe = cafe_service.create_google_cafe(user_id, body.dict())
+        return jsonify(cafe), 201
+    except ValidationError as e:
+        return jsonify({"error": e.errors()}), 400
+    except Exception as e:
+        logger.exception("Failed to create cafe")
+        return jsonify({"error": "Could not create cafe", "details": str(e)}), 500
 
 
 @cafe_bp.route("/<cafe_id>", methods=["GET"])

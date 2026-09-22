@@ -1,15 +1,16 @@
 import { Camera, ChevronLeft, Heart, MapPin, Share2, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Cafe } from '../types';
+import { Cafe, Post } from '../types';
 
 type CafeDetailsScreenProps = {
     cafe: Cafe;
     onBack: () => void;
     onSave: () => void;
     onAddPhoto?: (cafe: Cafe) => void;
+    communityPosts?: Post[];
 };
 
-export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto }: CafeDetailsScreenProps) {
+export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto, communityPosts = [] }: CafeDetailsScreenProps) {
     const handleShare = async () => {
         if (navigator.share) {
             try {
@@ -63,10 +64,10 @@ export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto }: CafeDe
                 <div className="flex items-center gap-4 text-sm mb-8">
                     <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-primary fill-primary" />
-                        <span className="font-bold">{cafe.rating}</span>
-                        <span className="text-slate-400 font-medium">({cafe.reviews} reviews)</span>
+                        <span className="font-bold">{cafe.communityRating ? cafe.communityRating.toFixed(1) : '—'}</span>
+                        <span className="text-slate-400 font-medium">({cafe.communityRatingCount || 0} community ratings)</span>
                     </div>
-                    <div className="text-slate-500 font-medium">{cafe.priceLevel} • {cafe.type}</div>
+                    <div className="text-slate-500 font-medium">Google {cafe.googleRating ? cafe.googleRating.toFixed(1) : '—'} • {cafe.priceLevel} {cafe.type}</div>
                 </div>
 
                 <div className="flex items-start justify-between p-4 bg-slate-50 rounded-2xl mb-8">
@@ -81,16 +82,18 @@ export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto }: CafeDe
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mb-10">
-                    {cafe.tags.map((tag) => (
-                        <span key={tag} className="px-4 py-2 rounded-full border border-slate-200 text-xs font-medium text-slate-600">
-                            {tag}
-                        </span>
+                <h2 className="text-xl font-bold mb-4">Community posts</h2>
+                {communityPosts.length === 0 && <p className="text-sm text-slate-400 mb-8">No posts here yet. Add the first photo inspiration.</p>}
+                <div className="columns-2 gap-4 space-y-4 mb-8">
+                    {communityPosts.map((post) => (
+                        <div key={post.id} className="relative overflow-hidden rounded-lg break-inside-avoid shadow-sm">
+                            <img src={post.imageUrl || undefined} className="w-full h-auto object-cover" alt={post.caption || cafe.name} />
+                        </div>
                     ))}
                 </div>
 
                 <div className="columns-2 gap-4 space-y-4">
-                    {cafe.inspirationImages.map((img, idx) => (
+                    {cafe.inspirationImages.filter(Boolean).map((img, idx) => (
                         <div key={idx} className="relative overflow-hidden rounded-lg break-inside-avoid shadow-sm">
                             <img src={img || undefined} className="w-full h-auto object-cover" alt="Inspiration" />
                         </div>

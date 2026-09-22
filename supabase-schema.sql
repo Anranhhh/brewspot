@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS public.posts (
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   google_place_id TEXT,
   image_url TEXT NOT NULL,
+  title TEXT,
   location TEXT,
   rating NUMERIC(3, 1),
   caption TEXT,

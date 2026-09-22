@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from 'react';
-import { Bookmark, ChevronLeft, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply, Flag } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Post } from '../types';
 import * as api from '../services/api';
@@ -25,6 +25,13 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const touchStartX = useState<number | null>(null);
+
+    const mediaUrls = (post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).filter(Boolean);
+    const goToImage = (direction: number) => {
+        setActiveImageIndex((current) => (current + direction + mediaUrls.length) % mediaUrls.length);
+    };
 
     // Comment Action Modal & Reply State
     const [selectedComment, setSelectedComment] = useState<any | null>(null);
@@ -42,6 +49,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
     );
 
     useEffect(() => {
+        setActiveImageIndex(0);
         setIsLoadingComments(true);
         api.getComments(post.id)
             .then((fetched) => {
@@ -244,12 +252,27 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto pb-32 no-scrollbar">
                 {/* Media Image */}
-                <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
+                <div
+                    className="relative aspect-square w-full bg-slate-100 overflow-hidden"
+                    onTouchStart={(event) => { touchStartX[1](event.touches[0].clientX); }}
+                    onTouchEnd={(event) => {
+                        const start = touchStartX[0];
+                        if (start === null) return;
+                        const delta = event.changedTouches[0].clientX - start;
+                        if (Math.abs(delta) > 40) goToImage(delta < 0 ? 1 : -1);
+                        touchStartX[1](null);
+                    }}
+                >
                     <img
-                        src={post.imageUrl || undefined}
+                        src={mediaUrls[activeImageIndex] || undefined}
                         alt="Post media"
                         className="w-full h-full object-cover"
                     />
+                    {mediaUrls.length > 1 && <>
+                        <button type="button" onClick={() => goToImage(-1)} className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center"><ChevronLeft className="w-5 h-5" /></button>
+                        <button type="button" onClick={() => goToImage(1)} className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center"><ChevronRight className="w-5 h-5" /></button>
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/55 text-white text-xs font-semibold">{activeImageIndex + 1} / {mediaUrls.length}</div>
+                    </>}
                     {post.rating && (
                         <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-amber-400 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1">
                             ★ {post.rating.toFixed(1)}
@@ -300,7 +323,8 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                         <span className="font-bold text-sm text-slate-900">{post.author?.name || 'Anonymous User'}</span>
                         <span className="text-xs text-slate-400">• {post.timestamp}</span>
                     </div>
-                    {post.caption && <p className="text-slate-700 text-sm leading-relaxed">{post.caption}</p>}
+                    {post.title && <h1 className="text-slate-900 text-lg font-bold mb-2">{post.title}</h1>}
+                    {post.caption && <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{post.caption}</p>}
                 </div>
 
                 {/* Comments Section */}

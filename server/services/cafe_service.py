@@ -35,7 +35,12 @@ def get_cafes(user_id: str | None = None) -> list[dict]:
         cid = c["id"]
         return cid in saved_ids or _resolve_uuid(cid) in saved_ids
 
-    return [_format_cafe(cafe, _is_saved(cafe)) for cafe in cafes]
+    formatted = []
+    for cafe in cafes:
+        item = {**cafe, **cafe_repository.get_cafe_stats(cafe["id"])}
+        item = _format_cafe(item, _is_saved(cafe))
+        formatted.append(item)
+    return formatted
 
 
 def get_saved_cafes(user_id: str) -> list[dict]:
@@ -75,7 +80,33 @@ def get_cafe_detail(cafe_id: str, user_id: str | None = None) -> dict | None:
     if user_id:
         is_saved = cafe_repository.is_cafe_saved(user_id, cafe_id) or cafe_repository.is_cafe_saved(user_id, resolved_id)
 
-    return _format_cafe(cafe, is_saved)
+    return _format_cafe({**cafe, **cafe_repository.get_cafe_stats(cafe["id"])}, is_saved)
+
+
+def search_cafes(query: str, user_id: str | None = None) -> list[dict]:
+    saved_ids = set(cafe_repository.get_saved_cafe_ids(user_id)) if user_id else set()
+    return [_format_cafe({**c, **cafe_repository.get_cafe_stats(c["id"])}, c["id"] in saved_ids) for c in cafe_repository.search_cafes(query)]
+
+
+def create_google_cafe(user_id: str, data: dict) -> dict:
+    existing = cafe_repository.get_cafe_by_google_place_id(data["google_place_id"])
+    if existing:
+        return _format_cafe(existing, False)
+    payload = {
+        "name": data["name"], "address": data.get("address", ""),
+        "google_place_id": data["google_place_id"], "created_by": user_id,
+        "source": "google_places", "google_rating": data.get("google_rating"),
+        "google_rating_count": data.get("google_rating_count"),
+        "price_level": data.get("price_level") or "", "type": data.get("cafe_type") or "Cafe",
+        "latitude": data.get("latitude"), "longitude": data.get("longitude"),
+    }
+    try:
+        return _format_cafe(cafe_repository.insert_google_cafe(payload), False)
+    except Exception:
+        existing = cafe_repository.get_cafe_by_google_place_id(data["google_place_id"])
+        if existing:
+            return _format_cafe(existing, False)
+        raise
 
 
 def toggle_save(user_id: str, cafe_id: str, cafe_data: dict | None = None) -> dict:
@@ -121,14 +152,21 @@ def _format_cafe(cafe: dict, is_saved: bool = False) -> dict:
     return {
         "id": cafe["id"],
         "name": cafe["name"],
-        "rating": float(cafe.get("rating") or 0),
-        "reviews": cafe.get("reviews", 0),
+        "rating": float(cafe.get("community_rating") or 0),
+        "reviews": int(cafe.get("rating_count") or 0),
+        "communityRating": float(cafe.get("community_rating") or 0),
+        "communityRatingCount": int(cafe.get("rating_count") or 0),
+        "googleRating": float(cafe.get("google_rating") or cafe.get("rating") or 0),
+        "googleRatingCount": int(cafe.get("google_rating_count") or cafe.get("reviews") or 0),
+        "googlePlaceId": cafe.get("google_place_id"),
+        "source": cafe.get("source", "legacy"),
+        "postCount": int(cafe.get("post_count") or 0),
         "priceLevel": cafe.get("price_level", ""),
         "type": cafe.get("type", ""),
         "address": cafe.get("address", ""),
         "status": cafe.get("status", ""),
         "tags": cafe.get("tags") or [],
-        "heroImage": cafe.get("hero_image", ""),
+        "heroImage": cafe.get("cover_image_url") or cafe.get("hero_image", ""),
         "inspirationImages": cafe.get("inspiration_images") or [],
         "isSaved": is_saved,
         "latitude": float(cafe["latitude"]) if cafe.get("latitude") is not None else None,

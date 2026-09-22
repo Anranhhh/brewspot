@@ -17,6 +17,7 @@ def get_feed_posts(user_id: str | None = None) -> list[dict]:
     """
     posts = post_repository.get_all_posts()
     post_ids = [p["id"] for p in posts]
+    _attach_media(posts)
 
     # Batch-fetch stats and user interaction state
     stats_map = post_repository.get_bulk_post_stats(post_ids)
@@ -46,6 +47,7 @@ def get_user_posts(user_id: str, current_user_id: str | None = None) -> list[dic
     """
     posts = post_repository.get_posts_by_user(user_id)
     post_ids = [p["id"] for p in posts]
+    _attach_media(posts)
 
     stats_map = post_repository.get_bulk_post_stats(post_ids)
     liked_ids: set[str] = set()
@@ -73,6 +75,7 @@ def get_liked_posts(user_id: str) -> list[dict]:
     """
     liked_ids = set(post_repository.get_liked_post_ids(user_id))
     posts = post_repository.get_posts_by_ids(list(liked_ids))
+    _attach_media(posts)
     post_ids = [p["id"] for p in posts]
     stats_map = post_repository.get_bulk_post_stats(post_ids)
     saved_ids = set(post_repository.get_saved_post_ids(user_id))
@@ -96,6 +99,7 @@ def get_saved_posts(user_id: str) -> list[dict]:
     """
     saved_ids = set(post_repository.get_saved_post_ids(user_id))
     posts = post_repository.get_posts_by_ids(list(saved_ids))
+    _attach_media(posts)
     post_ids = [p["id"] for p in posts]
     stats_map = post_repository.get_bulk_post_stats(post_ids)
     liked_ids = set(post_repository.get_liked_post_ids(user_id))
@@ -121,6 +125,7 @@ def get_post_detail(post_id: str, user_id: str | None = None) -> dict | None:
     post = post_repository.get_post_by_id(post_id)
     if not post:
         return None
+    _attach_media([post])
 
     stats = post_repository.get_post_stats(post_id)
     is_liked = False
@@ -135,9 +140,12 @@ def get_post_detail(post_id: str, user_id: str | None = None) -> dict | None:
 def create_post(
     user_id: str,
     image_url: str,
+    title: str | None = None,
     location: str | None = None,
     rating: float | None = None,
     caption: str | None = None,
+    cafe_id: str | None = None,
+    media_urls: list[str] | None = None,
 ) -> dict:
     """
     Create a new post and return it formatted.
@@ -148,7 +156,7 @@ def create_post(
     @param caption Optional caption
     @returns formatted post dict
     """
-    post = post_repository.create_post(user_id, image_url, location, rating, caption)
+    post = post_repository.create_post(user_id, image_url, title, location, rating, caption, cafe_id=cafe_id, media_urls=media_urls)
     stats = {"likes_count": 0, "saves_count": 0, "comments_count": 0}
     return _format_post(post, stats, False, False)
 
@@ -345,6 +353,14 @@ def delete_comment(user_id: str, comment_id: str) -> dict:
     return {"success": success, "message": "Comment deleted successfully"}
 
 
+def _attach_media(posts: list[dict]) -> None:
+    media_map = post_repository.get_post_media([post["id"] for post in posts])
+    for post in posts:
+        urls = media_map.get(post["id"])
+        if urls:
+            post["media_urls"] = urls
+
+
 def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dict:
     """
     Transform DB post + stats into frontend camelCase format.
@@ -358,12 +374,15 @@ def _format_post(post: dict, stats: dict, is_liked: bool, is_saved: bool) -> dic
     return {
         "id": post["id"],
         "imageUrl": post.get("image_url", ""),
+        "mediaUrls": post.get("media_urls") or [post.get("image_url", "")],
         "author": {
             "id": (author.get("id") if author else None) or post.get("user_id"),
             "name": (author.get("display_name") or author.get("name") or author.get("username") or "Coffee Enthusiast") if author else "Coffee Enthusiast",
             "profile": (author.get("avatar_url") or author.get("profile") or author.get("avatar") or "") if author else "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
         },
         "location": post.get("location"),
+        "title": post.get("title"),
+        "cafeId": post.get("cafe_id"),
         "rating": float(post["rating"]) if post.get("rating") else None,
         "likes": stats.get("likes_count", 0),
         "comments": stats.get("comments_count", 0),

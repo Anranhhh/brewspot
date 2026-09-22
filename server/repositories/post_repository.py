@@ -25,6 +25,15 @@ def get_all_posts() -> list[dict]:
             .execute()
         )
         return response.data
+    except Exception:
+        response = (
+            client.table("posts")
+            .select("*")
+            .in_("id", post_ids)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data
     except Exception as e:
         logger.warning(f"Failed to fetch posts with profiles fkey: {e}. Trying fallback.")
         response = (
@@ -115,30 +124,73 @@ def get_posts_by_ids(post_ids: list[str]) -> list[dict]:
         return response.data
 
 
+def get_post_media(post_ids: list[str]) -> dict[str, list[str]]:
+    if not post_ids:
+        return {}
+    client = get_supabase_client()
+    try:
+        response = (client.table("post_media").select("post_id,image_url,sort_order")
+                    .in_("post_id", post_ids).order("sort_order").execute())
+        media: dict[str, list[str]] = {post_id: [] for post_id in post_ids}
+        for row in response.data:
+            if row.get("image_url"):
+                media.setdefault(row["post_id"], []).append(row["image_url"])
+        return media
+    except Exception:
+        # Older deployments can continue using posts.image_url until migration runs.
+        return {}
+
+
 def create_post(
     user_id: str,
     image_url: str,
+    title: str | None = None,
     location: str | None = None,
     rating: float | None = None,
     caption: str | None = None,
     google_place_id: str | None = None,
+    cafe_id: str | None = None,
+    media_urls: list[str] | None = None,
 ) -> dict:
     """
     Insert a new post record into public.posts.
     """
     client = get_supabase_client()
     payload: dict = {"user_id": user_id, "image_url": image_url}
+    if cafe_id:
+        cafe_response = client.table("cafes").select("id").eq("id", cafe_id).limit(1).execute()
+        if not cafe_response.data:
+            raise ValueError("The selected café is no longer available. Please choose another café.")
     if location:
         payload["location"] = location
+    if title and title.strip():
+        payload["title"] = title.strip()
     if rating is not None:
         payload["rating"] = rating
     if caption:
         payload["caption"] = caption
     if google_place_id:
         payload["google_place_id"] = google_place_id
+    if cafe_id:
+        payload["cafe_id"] = cafe_id
 
     response = client.table("posts").insert(payload).execute()
-    return response.data[0]
+    post = response.data[0]
+    urls = [image_url] + [url for url in (media_urls or []) if url and url != image_url]
+    try:
+        client.table("post_media").insert([
+            {"post_id": post["id"], "image_url": url, "sort_order": index}
+            for index, url in enumerate(urls[:10]) if url
+        ]).execute()
+    except Exception as e:
+        # Do not leave a post published without its complete media set.
+        try:
+            client.table("posts").delete().eq("id", post["id"]).execute()
+        except Exception:
+            logger.exception("Could not roll back post after media failure")
+        raise RuntimeError("Could not save post images. Please try again.") from e
+    post["media_urls"] = urls[:10]
+    return post
 
 
 def delete_post(post_id: str) -> bool:

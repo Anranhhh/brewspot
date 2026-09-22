@@ -475,6 +475,7 @@ export default function Explore({
 
                     mappedCafes.push({
                         id: placeId,
+                        googlePlaceId: placeId,
                         name: name,
                         rating: result.rating || 4.5,
                         reviews: result.userRatingCount || 25,

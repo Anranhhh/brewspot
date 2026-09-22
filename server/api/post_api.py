@@ -68,14 +68,23 @@ def create_post():
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
-    post = post_service.create_post(
-        user_id=user_id,
-        image_url=body.image_url,
-        location=body.location,
-        rating=body.rating,
-        caption=body.caption,
-    )
-    return jsonify(post), 201
+    try:
+        post = post_service.create_post(
+            user_id=user_id,
+            image_url=body.image_url,
+            cafe_id=body.cafe_id,
+            media_urls=body.media_urls,
+            title=body.title,
+            location=body.location,
+            rating=body.rating,
+            caption=body.caption,
+        )
+        return jsonify(post), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to create post")
+        return jsonify({"error": str(e) or "Could not create post"}), 500
 
 
 @post_bp.route("/<post_id>", methods=["DELETE"])

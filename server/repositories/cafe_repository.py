@@ -17,10 +17,52 @@ def get_all_cafes() -> list[dict]:
     response = (
         client.table("cafes")
         .select("*")
-        .order("rating", desc=True)
+        .order("created_at", desc=True)
         .execute()
     )
     return response.data
+
+
+def search_cafes(query: str, limit: int = 30) -> list[dict]:
+    client = get_supabase_client()
+    pattern = f"%{query.strip()}%"
+    response = (client.table("cafes").select("*")
+                .or_(f"name.ilike.{pattern},address.ilike.{pattern}")
+                .order("name").limit(limit).execute())
+    return response.data
+
+
+def get_cafe_stats(cafe_id: str) -> dict:
+    client = get_supabase_client()
+    try:
+        response = client.table("cafe_community_stats").select("*").eq("cafe_id", cafe_id).single().execute()
+        return response.data or {}
+    except Exception:
+        return {}
+
+
+def get_trending_cafes(limit: int = 8) -> list[dict]:
+    client = get_supabase_client()
+    response = (client.table("cafe_trending").select("*")
+                .order("recent_post_count", desc=True)
+                .order("latest_post_at", desc=True)
+                .limit(limit).execute())
+    ids = [row["cafe_id"] for row in response.data]
+    cafes = get_cafes_by_ids(ids)
+    by_id = {c["id"]: c for c in cafes}
+    return [{**by_id[row["cafe_id"]], **row} for row in response.data if row["cafe_id"] in by_id]
+
+
+def get_cafe_by_google_place_id(place_id: str) -> dict | None:
+    client = get_supabase_client()
+    response = client.table("cafes").select("*").eq("google_place_id", place_id).limit(1).execute()
+    return response.data[0] if response.data else None
+
+
+def insert_google_cafe(payload: dict) -> dict:
+    client = get_supabase_client()
+    response = client.table("cafes").insert(payload).execute()
+    return response.data[0]
 
 
 def get_cafe_by_id(cafe_id: str) -> dict | None:
