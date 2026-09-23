@@ -223,10 +223,10 @@ export async function getCafeById(cafeId: string): Promise<Cafe> {
  * @param cafeDetails Optional cafe details for auto-creation
  * @returns { isSaved: boolean }
  */
-export async function toggleSaveCafe(cafeId: string, cafeDetails?: Cafe): Promise<{ isSaved: boolean }> {
+export async function toggleSaveCafe(cafeId: string, cafeDetails?: Cafe, saved?: boolean): Promise<{ isSaved: boolean; cafeId?: string }> {
   return apiFetch('/cafes/' + cafeId + '/save', {
     method: 'POST',
-    body: cafeDetails ? JSON.stringify(cafeDetails) : undefined,
+    body: JSON.stringify({ ...(cafeDetails || {}), ...(saved === undefined ? {} : { isSaved: saved }) }),
   });
 }
 
@@ -285,8 +285,8 @@ export async function deletePost(postId: string): Promise<{ success: boolean; me
  * @param postId Post UUID
  * @returns { isLiked: boolean, likes: number }
  */
-export async function toggleLikePost(postId: string): Promise<{ isLiked: boolean; likes: number }> {
-  return apiFetch('/posts/' + postId + '/like', { method: 'POST' });
+export async function toggleLikePost(postId: string, liked: boolean): Promise<{ isLiked: boolean; likes: number }> {
+  return apiFetch('/posts/' + postId + '/like', { method: 'POST', body: JSON.stringify({ liked }) });
 }
 
 /**
@@ -294,8 +294,8 @@ export async function toggleLikePost(postId: string): Promise<{ isLiked: boolean
  * @param postId Post UUID
  * @returns { isSaved: boolean, saves: number }
  */
-export async function toggleSavePost(postId: string): Promise<{ isSaved: boolean; saves: number }> {
-  return apiFetch('/posts/' + postId + '/save', { method: 'POST' });
+export async function toggleSavePost(postId: string, saved: boolean): Promise<{ isSaved: boolean; saves: number }> {
+  return apiFetch('/posts/' + postId + '/save', { method: 'POST', body: JSON.stringify({ saved }) });
 }
 
 // --- Comments ---

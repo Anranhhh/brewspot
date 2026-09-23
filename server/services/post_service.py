@@ -225,6 +225,12 @@ def toggle_like(user_id: str, post_id: str) -> dict:
     return {"isLiked": is_liked, "likes": stats.get("likes_count", 0)}
 
 
+def set_like(user_id: str, post_id: str, liked: bool) -> dict:
+    is_liked = post_repository.set_post_like(user_id, post_id, liked)
+    stats = post_repository.get_post_stats(post_id)
+    return {"isLiked": is_liked, "likes": stats.get("likes_count", 0)}
+
+
 def toggle_save(user_id: str, post_id: str) -> dict:
     """
     Toggle save on a post.
@@ -255,6 +261,12 @@ def toggle_save(user_id: str, post_id: str) -> dict:
         except Exception as e:
             logger.error(f"Failed to create save notification: {e}")
 
+    return {"isSaved": is_saved, "saves": stats.get("saves_count", 0)}
+
+
+def set_save(user_id: str, post_id: str, saved: bool) -> dict:
+    is_saved = post_repository.set_post_save(user_id, post_id, saved)
+    stats = post_repository.get_post_stats(post_id)
     return {"isSaved": is_saved, "saves": stats.get("saves_count", 0)}
 
 

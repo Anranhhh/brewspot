@@ -119,7 +119,8 @@ def toggle_like(post_id: str):
     if not user_id:
         return jsonify({"error": "Authentication required"}), 401
 
-    result = post_service.toggle_like(user_id, post_id)
+    body = request.get_json(silent=True) or {}
+    result = post_service.set_like(user_id, post_id, bool(body.get("liked", True)))
     return jsonify(result), 200
 
 
@@ -133,7 +134,8 @@ def toggle_save(post_id: str):
     if not user_id:
         return jsonify({"error": "Authentication required"}), 401
 
-    result = post_service.toggle_save(user_id, post_id)
+    body = request.get_json(silent=True) or {}
+    result = post_service.set_save(user_id, post_id, bool(body.get("saved", True)))
     return jsonify(result), 200
 
 

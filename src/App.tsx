@@ -173,7 +173,14 @@ export default function App() {
     }
 
     if (screen === 'new-post') setNewPostCafe(data as Cafe);
-    if (screen === 'cafe-details') setSelectedCafe(data as Cafe);
+    if (screen === 'cafe-details') {
+      setSelectedCafe(data as Cafe);
+      if (data?.id) {
+        void api.getCafeById(data.id)
+          .then((freshCafe) => setSelectedCafe(freshCafe))
+          .catch((err) => console.error('Failed to refresh café details:', err));
+      }
+    }
     if (screen === 'post-details') setSelectedPost(data as Post);
     if (screen === 'profile' && tab) setProfileTab(tab);
     if (screen === 'user-profile') {
@@ -365,6 +372,10 @@ export default function App() {
 
   const handleLike = async (postId: string) => {
     requireAuth(async () => {
+      const previousPosts = posts;
+      const previousUserPosts = userPosts;
+      const previousSelectedPost = selectedPost;
+      const desiredLiked = !(posts.find(p => p.id === postId)?.isLiked);
       const update = (p: Post) =>
         p.id === postId
           ? { ...p, isLiked: !p.isLiked, likes: (p.likes || 0) + (p.isLiked ? -1 : 1) }
@@ -377,13 +388,26 @@ export default function App() {
       }
 
       try {
-        await api.toggleLikePost(postId);
-      } catch { }
+        const result = await api.toggleLikePost(postId, desiredLiked);
+        const applyServerState = (p: Post) => p.id === postId ? { ...p, isLiked: result.isLiked, likes: result.likes } : p;
+        setPosts(prev => prev.map(applyServerState));
+        setUserPosts(prev => prev.map(applyServerState));
+        setSelectedPost(prev => prev?.id === postId ? applyServerState(prev) : prev);
+      } catch (err) {
+        setPosts(previousPosts);
+        setUserPosts(previousUserPosts);
+        setSelectedPost(previousSelectedPost);
+        console.error('Failed to persist like:', err);
+      }
     }, 'Like this post', 'Sign in to like posts and keep track of your favorite coffee moments.');
   };
 
   const handleSave = async (postId: string) => {
     requireAuth(async () => {
+      const previousPosts = posts;
+      const previousUserPosts = userPosts;
+      const previousSelectedPost = selectedPost;
+      const desiredSaved = !(posts.find(p => p.id === postId)?.isSaved);
       const update = (p: Post) =>
         p.id === postId
           ? { ...p, isSaved: !p.isSaved, saves: (p.saves || 0) + (p.isSaved ? -1 : 1) }
@@ -396,13 +420,26 @@ export default function App() {
       }
 
       try {
-        await api.toggleSavePost(postId);
-      } catch { }
+        const result = await api.toggleSavePost(postId, desiredSaved);
+        const applyServerState = (p: Post) => p.id === postId ? { ...p, isSaved: result.isSaved, saves: result.saves } : p;
+        setPosts(prev => prev.map(applyServerState));
+        setUserPosts(prev => prev.map(applyServerState));
+        setSelectedPost(prev => prev?.id === postId ? applyServerState(prev) : prev);
+      } catch (err) {
+        setPosts(previousPosts);
+        setUserPosts(previousUserPosts);
+        setSelectedPost(previousSelectedPost);
+        console.error('Failed to persist saved post:', err);
+      }
     }, 'Save this post', 'Sign in to save posts to your personal collection.');
   };
 
   const handleSaveCafe = async (cafeId: string, cafeDetails?: Cafe) => {
     requireAuth(async () => {
+      const previousCafes = cafes;
+      const previousSelectedCafe = selectedCafe;
+      const currentCafe = cafes.find(c => c.id === cafeId) || selectedCafe;
+      const desiredSaved = !(currentCafe?.isSaved);
       const exists = cafes.some((c) => c.id === cafeId);
       if (exists) {
         setCafes((prev) =>
@@ -417,8 +454,13 @@ export default function App() {
       }
 
       try {
-        await api.toggleSaveCafe(cafeId, cafeDetails);
+        const result = await api.toggleSaveCafe(cafeId, cafeDetails, desiredSaved);
+        const persistedId = result.cafeId || cafeId;
+        setCafes(prev => prev.map(c => c.id === cafeId || c.id === persistedId ? { ...c, id: persistedId, isSaved: result.isSaved } : c));
+        setSelectedCafe(prev => prev?.id === cafeId || prev?.id === persistedId ? { ...prev, id: persistedId, isSaved: result.isSaved } : prev);
       } catch (err) {
+        setCafes(previousCafes);
+        setSelectedCafe(previousSelectedCafe);
         console.error("Failed to toggle save cafe:", err);
       }
     }, 'Save this café', 'Create an account to save cafés and build your favorite coffee spots collection.');

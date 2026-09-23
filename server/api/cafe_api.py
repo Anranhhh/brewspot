@@ -46,7 +46,7 @@ def search_cafes():
 
 @cafe_bp.route("/trending", methods=["GET"])
 def trending_cafes():
-    return jsonify([cafe_service._format_cafe(c, False) for c in cafe_service.cafe_repository.get_trending_cafes()]), 200
+    return jsonify(cafe_service.get_trending_cafes(_get_current_user_id())), 200
 
 
 @cafe_bp.route("", methods=["POST"])
@@ -90,7 +90,11 @@ def toggle_save(cafe_id: str):
 
     cafe_data = request.get_json(silent=True)
     try:
-        result = cafe_service.toggle_save(user_id, cafe_id, cafe_data)
+        desired_saved = cafe_data.get("isSaved") if isinstance(cafe_data, dict) and "isSaved" in cafe_data else None
+        result = cafe_service.toggle_save(user_id, cafe_id, cafe_data, desired_saved)
         return jsonify(result), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to persist cafe save")
+        return jsonify({"error": str(e) or "Could not save café"}), 500

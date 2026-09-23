@@ -41,7 +41,7 @@ def get_cafe_stats(cafe_id: str) -> dict:
         return {}
 
 
-def get_trending_cafes(limit: int = 8) -> list[dict]:
+def get_trending_cafes(limit: int = 8, saved_ids: set[str] | None = None) -> list[dict]:
     client = get_supabase_client()
     response = (client.table("cafe_trending").select("*")
                 .order("recent_post_count", desc=True)
@@ -50,7 +50,11 @@ def get_trending_cafes(limit: int = 8) -> list[dict]:
     ids = [row["cafe_id"] for row in response.data]
     cafes = get_cafes_by_ids(ids)
     by_id = {c["id"]: c for c in cafes}
-    return [{**by_id[row["cafe_id"]], **row} for row in response.data if row["cafe_id"] in by_id]
+    saved_ids = saved_ids or set()
+    return [
+        {**by_id[row["cafe_id"]], **row, "is_saved": row["cafe_id"] in saved_ids}
+        for row in response.data if row["cafe_id"] in by_id
+    ]
 
 
 def get_cafe_by_google_place_id(place_id: str) -> dict | None:
@@ -110,14 +114,14 @@ def is_cafe_saved(user_id: str, cafe_id: str) -> bool:
     """
     client = get_supabase_client()
     try:
-        res = client.table("saved_cafes").select("user_id").eq("user_id", user_id).eq("google_place_id", cafe_id).execute()
+        res = client.table("cafe_saves").select("user_id").eq("user_id", user_id).eq("cafe_id", cafe_id).execute()
         if len(res.data) > 0:
             return True
     except Exception:
         pass
 
     try:
-        res = client.table("cafe_saves").select("user_id").eq("user_id", user_id).eq("cafe_id", cafe_id).execute()
+        res = client.table("saved_cafes").select("user_id").eq("user_id", user_id).eq("google_place_id", cafe_id).execute()
         return len(res.data) > 0
     except Exception:
         return False
@@ -130,30 +134,39 @@ def toggle_cafe_save(user_id: str, cafe_id: str, cafe_name: str = "", cafe_addre
     client = get_supabase_client()
     if is_cafe_saved(user_id, cafe_id):
         try:
-            client.table("saved_cafes").delete().eq("user_id", user_id).eq("google_place_id", cafe_id).execute()
+            client.table("cafe_saves").delete().eq("user_id", user_id).eq("cafe_id", cafe_id).execute()
         except Exception:
             pass
         try:
-            client.table("cafe_saves").delete().eq("user_id", user_id).eq("cafe_id", cafe_id).execute()
+            client.table("saved_cafes").delete().eq("user_id", user_id).eq("google_place_id", cafe_id).execute()
         except Exception:
             pass
         return False
     else:
         try:
-            client.table("saved_cafes").insert({
-                "user_id": user_id,
-                "google_place_id": cafe_id,
-                "cafe_name": cafe_name or "Café",
-                "cafe_address": cafe_address,
-                "hero_image": hero_image,
-                "rating": rating
-            }).execute()
+            client.table("cafe_saves").insert({"user_id": user_id, "cafe_id": cafe_id}).execute()
         except Exception:
             try:
-                client.table("cafe_saves").insert({"user_id": user_id, "cafe_id": cafe_id}).execute()
+                client.table("saved_cafes").insert({
+                    "user_id": user_id, "google_place_id": cafe_id,
+                    "cafe_name": cafe_name or "Café", "cafe_address": cafe_address,
+                    "hero_image": hero_image, "rating": rating
+                }).execute()
             except Exception:
-                pass
+                raise RuntimeError("Could not save this café.")
         return True
+
+
+def set_cafe_save(user_id: str, cafe_id: str, saved: bool, cafe_name: str = "", cafe_address: str = "", hero_image: str = "", rating: float = 0.0) -> bool:
+    client = get_supabase_client()
+    if saved:
+        client.table("cafe_saves").upsert(
+            {"user_id": user_id, "cafe_id": cafe_id},
+            on_conflict="user_id,cafe_id",
+        ).execute()
+    else:
+        client.table("cafe_saves").delete().eq("user_id", user_id).eq("cafe_id", cafe_id).execute()
+    return saved
 
 
 def get_saved_cafe_ids(user_id: str) -> list[str]:
@@ -163,14 +176,14 @@ def get_saved_cafe_ids(user_id: str) -> list[str]:
     client = get_supabase_client()
     saved_ids = []
     try:
-        res1 = client.table("saved_cafes").select("google_place_id").eq("user_id", user_id).execute()
-        saved_ids.extend([row["google_place_id"] for row in res1.data])
+        res1 = client.table("cafe_saves").select("cafe_id").eq("user_id", user_id).execute()
+        saved_ids.extend([row["cafe_id"] for row in res1.data])
     except Exception:
         pass
 
     try:
-        res2 = client.table("cafe_saves").select("cafe_id").eq("user_id", user_id).execute()
-        saved_ids.extend([row["cafe_id"] for row in res2.data])
+        res2 = client.table("saved_cafes").select("google_place_id").eq("user_id", user_id).execute()
+        saved_ids.extend([row["google_place_id"] for row in res2.data])
     except Exception:
         pass
 

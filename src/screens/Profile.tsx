@@ -50,12 +50,15 @@ export default function ProfileScreen({
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Dedicated state for API-loaded collections
-    const [apiLikedPosts, setApiLikedPosts] = useState<Post[]>([]);
-    const [apiSavedPosts, setApiSavedPosts] = useState<Post[]>([]);
-    const [apiSavedCafes, setApiSavedCafes] = useState<Cafe[]>([]);
+    const [apiLikedPosts, setApiLikedPosts] = useState<Post[] | null>(null);
+    const [apiSavedPosts, setApiSavedPosts] = useState<Post[] | null>(null);
+    const [apiSavedCafes, setApiSavedCafes] = useState<Cafe[] | null>(null);
 
     useEffect(() => {
         if (!currentUser?.id) return;
+        setApiLikedPosts(null);
+        setApiSavedPosts(null);
+        setApiSavedCafes(null);
         
         // Fetch user profile metrics
         api.getUserProfile(currentUser.id)
@@ -70,26 +73,26 @@ export default function ProfileScreen({
         // Fetch liked posts, saved posts, and saved cafes from API
         api.getLikedPosts(currentUser.id)
             .then((fetched) => setApiLikedPosts(fetched || []))
-            .catch(() => {});
+            .catch(() => setApiLikedPosts([]));
 
         api.getSavedPosts(currentUser.id)
             .then((fetched) => setApiSavedPosts(fetched || []))
-            .catch(() => {});
+            .catch(() => setApiSavedPosts([]));
 
         api.getSavedCafes(currentUser.id)
             .then((fetched) => setApiSavedCafes(fetched || []))
-            .catch(() => {});
+            .catch(() => setApiSavedCafes([]));
     }, [currentUser, activeTab]);
 
     // Merge in-memory state with API collection results
     const localLiked = posts.filter(p => p.isLiked);
-    const likedPosts = apiLikedPosts.length > 0 ? apiLikedPosts : localLiked;
+    const likedPosts = apiLikedPosts ?? localLiked;
 
     const localSaved = posts.filter(p => p.isSaved);
-    const savedPosts = apiSavedPosts.length > 0 ? apiSavedPosts : localSaved;
+    const savedPosts = apiSavedPosts ?? localSaved;
 
     const localSavedCafes = cafes.filter(c => c.isSaved);
-    const savedCafes = apiSavedCafes.length > 0 ? apiSavedCafes : localSavedCafes;
+    const savedCafes = apiSavedCafes ?? localSavedCafes;
 
     const displayPosts = activeTab === 'posts' ? userPosts : activeTab === 'liked' ? likedPosts : activeTab === 'saved' ? savedPosts : [];
 

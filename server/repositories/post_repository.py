@@ -216,23 +216,19 @@ def get_post_stats(post_id: str) -> dict:
     Fetch aggregate stats (likes, saves, comments) from database.
     """
     client = get_supabase_client()
-    try:
-        likes_res = client.table("post_likes").select("user_id", count="exact").eq("post_id", post_id).execute()
+    def count_rows(table: str, column: str = "user_id") -> int:
         try:
-            saves_res = client.table("saved_posts").select("user_id", count="exact").eq("post_id", post_id).execute()
+            result = client.table(table).select(column, count="exact").eq("post_id", post_id).execute()
+            return result.count if result.count is not None else len(result.data)
         except Exception:
-            # Legacy schema uses post_saves.
-            saves_res = client.table("post_saves").select("user_id", count="exact").eq("post_id", post_id).execute()
-        comments_res = client.table("comments").select("id", count="exact").eq("post_id", post_id).execute()
-        
-        return {
-            "post_id": post_id,
-            "likes_count": likes_res.count if likes_res.count is not None else len(likes_res.data),
-            "saves_count": saves_res.count if saves_res.count is not None else len(saves_res.data),
-            "comments_count": comments_res.count if comments_res.count is not None else len(comments_res.data),
-        }
-    except Exception:
-        return {"post_id": post_id, "likes_count": 0, "saves_count": 0, "comments_count": 0}
+            return 0
+
+    return {
+        "post_id": post_id,
+        "likes_count": count_rows("post_likes"),
+        "saves_count": count_rows("saved_posts"),
+        "comments_count": count_rows("comments", "id"),
+    }
 
 
 def get_bulk_post_stats(post_ids: list[str]) -> dict[str, dict]:
@@ -271,6 +267,22 @@ def toggle_post_like(user_id: str, post_id: str) -> bool:
         return True
 
 
+def set_post_like(user_id: str, post_id: str, liked: bool) -> bool:
+    client = get_supabase_client()
+    if liked:
+        try:
+            client.table("post_likes").upsert(
+                {"user_id": user_id, "post_id": post_id},
+                on_conflict="user_id,post_id",
+            ).execute()
+        except Exception:
+            if not is_post_liked(user_id, post_id):
+                raise
+    else:
+        client.table("post_likes").delete().eq("user_id", user_id).eq("post_id", post_id).execute()
+    return liked
+
+
 def get_liked_post_ids(user_id: str) -> list[str]:
     client = get_supabase_client()
     response = (
@@ -307,6 +319,22 @@ def toggle_post_save(user_id: str, post_id: str) -> bool:
         except Exception:
             client.table("post_saves").insert({"user_id": user_id, "post_id": post_id}).execute()
         return True
+
+
+def set_post_save(user_id: str, post_id: str, saved: bool) -> bool:
+    client = get_supabase_client()
+    if saved:
+        try:
+            client.table("saved_posts").upsert(
+                {"user_id": user_id, "post_id": post_id},
+                on_conflict="user_id,post_id",
+            ).execute()
+        except Exception:
+            if not is_post_saved(user_id, post_id):
+                raise
+    else:
+        client.table("saved_posts").delete().eq("user_id", user_id).eq("post_id", post_id).execute()
+    return saved
 
 
 def get_saved_post_ids(user_id: str) -> list[str]:

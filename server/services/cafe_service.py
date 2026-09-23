@@ -52,7 +52,7 @@ def get_saved_cafes(user_id: str) -> list[dict]:
     all_cafes = cafe_repository.get_all_cafes()
 
     from_cafes_tbl = [
-        _format_cafe(c, True) for c in all_cafes
+        _format_cafe({**c, **cafe_repository.get_cafe_stats(c["id"])}, True) for c in all_cafes
         if c["id"] in saved_ids or _resolve_uuid(c["id"]) in saved_ids
     ]
 
@@ -65,6 +65,12 @@ def get_saved_cafes(user_id: str) -> list[dict]:
             merged_map[c["id"]] = c
 
     return list(merged_map.values())
+
+
+def get_trending_cafes(user_id: str | None = None) -> list[dict]:
+    saved_ids = set(cafe_repository.get_saved_cafe_ids(user_id)) if user_id else set()
+    cafes = cafe_repository.get_trending_cafes(saved_ids=saved_ids)
+    return [_format_cafe(cafe, bool(cafe.get("is_saved"))) for cafe in cafes]
 
 
 def get_cafe_detail(cafe_id: str, user_id: str | None = None) -> dict | None:
@@ -109,7 +115,7 @@ def create_google_cafe(user_id: str, data: dict) -> dict:
         raise
 
 
-def toggle_save(user_id: str, cafe_id: str, cafe_data: dict | None = None) -> dict:
+def toggle_save(user_id: str, cafe_id: str, cafe_data: dict | None = None, desired_saved: bool | None = None) -> dict:
     """
     Toggle save state for a cafe.
     """
@@ -119,8 +125,10 @@ def toggle_save(user_id: str, cafe_id: str, cafe_data: dict | None = None) -> di
     c_hero = (cafe_data.get("heroImage") if cafe_data else None) or ""
     c_rating = float(cafe_data.get("rating") if cafe_data and cafe_data.get("rating") is not None else 0.0)
 
-    # If the cafe is not in cafes table, insert it
-    if not cafe_repository.get_cafe_by_id(cafe_id) and not cafe_repository.get_cafe_by_id(resolved_id):
+    # Resolve Google Place IDs to the BrewSpot internal cafe UUID before
+    # writing cafe_saves.cafe_id.
+    cafe_record = cafe_repository.get_cafe_by_id(cafe_id) or cafe_repository.get_cafe_by_id(resolved_id)
+    if not cafe_record:
         if cafe_data:
             try:
                 cafe_repository.create_cafe(
@@ -138,11 +146,17 @@ def toggle_save(user_id: str, cafe_id: str, cafe_data: dict | None = None) -> di
                     latitude=float(cafe_data["latitude"]) if cafe_data.get("latitude") is not None else None,
                     longitude=float(cafe_data["longitude"]) if cafe_data.get("longitude") is not None else None
                 )
+                cafe_record = cafe_repository.get_cafe_by_id(resolved_id)
             except Exception as e:
                 logger.warning(f"Could not auto-create cafe row: {e}")
 
-    is_saved = cafe_repository.toggle_cafe_save(user_id, cafe_id, c_name, c_addr, c_hero, c_rating)
-    return {"isSaved": is_saved}
+    canonical_cafe_id = (cafe_record or {}).get("id") or cafe_id
+    is_saved = (
+        cafe_repository.set_cafe_save(user_id, canonical_cafe_id, desired_saved, c_name, c_addr, c_hero, c_rating)
+        if desired_saved is not None
+        else cafe_repository.toggle_cafe_save(user_id, canonical_cafe_id, c_name, c_addr, c_hero, c_rating)
+    )
+    return {"isSaved": is_saved, "cafeId": canonical_cafe_id}
 
 
 def _format_cafe(cafe: dict, is_saved: bool = False) -> dict:
