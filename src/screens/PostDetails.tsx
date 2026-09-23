@@ -11,11 +11,12 @@ type PostDetailScreenProps = {
     onBack: () => void;
     onLike: (id: string) => void;
     onSave: (id: string) => void;
+    onNavigate: (screen: 'user-profile', data?: any) => void;
     onDeletePost?: (id: string) => void;
     highlightCommentId?: string | null;
 };
 
-export default function PostDetail({ post, currentUser, onBack, onLike, onSave, onDeletePost, highlightCommentId }: PostDetailScreenProps) {
+export default function PostDetail({ post, currentUser, onBack, onLike, onSave, onNavigate, onDeletePost, highlightCommentId }: PostDetailScreenProps) {
     const [commentText, setCommentText] = useState('');
     const [commentsList, setCommentsList] = useState<any[]>([]);
     const [commentsCount, setCommentsCount] = useState<number>(post.comments || 0);
@@ -91,8 +92,23 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
         try {
             const newComment = await api.addComment(post.id, text, parentId);
             if (newComment) {
-                setCommentsList((prev) => [...prev, newComment]);
-                setCommentsCount((count) => count + 1);
+                // Replace the temporary UI state with the canonical persisted
+                // list so comments cannot disappear when the screen refreshes.
+                try {
+                    const persistedComments = await api.getComments(post.id);
+                    setCommentsList(persistedComments);
+                    setCommentsCount(persistedComments.length);
+                } catch (refreshError) {
+                    // The insert succeeded; retain the returned row if a
+                    // transient follow-up read fails.
+                    console.warn('Comment saved, but refreshing comments failed:', refreshError);
+                    setCommentsList((prev) => (
+                        prev.some((comment) => comment.id === newComment.id)
+                            ? prev
+                            : [...prev, newComment]
+                    ));
+                    setCommentsCount((count) => count + 1);
+                }
                 setReplyingTo(null);
             }
         } catch (err: any) {
@@ -159,9 +175,22 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                                 : 'bg-slate-50 border-slate-100 group-hover:border-primary/30'
                     }`}>
                         <div className="flex items-center justify-between mb-1">
-                            <span className={`font-bold text-slate-900 ${depth > 0 ? 'text-[11px]' : 'text-xs'}`}>
-                                {comment.author?.name || 'User'}
-                            </span>
+                            {comment.author?.id ? (
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        onNavigate('user-profile', comment.author);
+                                    }}
+                                    className={`font-bold text-slate-900 hover:text-primary hover:underline text-left ${depth > 0 ? 'text-[11px]' : 'text-xs'}`}
+                                >
+                                    {comment.author.name || 'User'}
+                                </button>
+                            ) : (
+                                <span className={`font-bold text-slate-900 ${depth > 0 ? 'text-[11px]' : 'text-xs'}`}>
+                                    {comment.author?.name || 'User'}
+                                </span>
+                            )}
                             <span className="text-[10px] text-slate-400">{comment.timestamp}</span>
                         </div>
                         <p className={`text-slate-700 leading-snug ${depth > 0 ? 'text-[11px]' : 'text-xs'}`}>
@@ -320,7 +349,17 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                             src={post.author?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
                             alt={post.author?.name}
                         />
-                        <span className="font-bold text-sm text-slate-900">{post.author?.name || 'Anonymous User'}</span>
+                        {post.author?.id ? (
+                            <button
+                                type="button"
+                                onClick={() => onNavigate('user-profile', post.author)}
+                                className="font-bold text-sm text-slate-900 hover:text-primary hover:underline text-left"
+                            >
+                                {post.author.name || 'Anonymous User'}
+                            </button>
+                        ) : (
+                            <span className="font-bold text-sm text-slate-900">{post.author?.name || 'Anonymous User'}</span>
+                        )}
                         <span className="text-xs text-slate-400">• {post.timestamp}</span>
                     </div>
                     {post.title && <h1 className="text-slate-900 text-lg font-bold mb-2">{post.title}</h1>}

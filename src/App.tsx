@@ -541,6 +541,7 @@ export default function App() {
               onBack={handleBack}
               onLike={handleLike}
               onSave={handleSave}
+              onNavigate={(screen, data) => navigateTo(screen, data)}
               onDeletePost={(deletedPostId) => {
                 setPosts((prev) => prev.filter((p) => p.id !== deletedPostId));
                 setUserPosts((prev) => prev.filter((p) => p.id !== deletedPostId));

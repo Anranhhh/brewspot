@@ -165,8 +165,14 @@ def add_comment(post_id: str):
     except ValidationError as e:
         return jsonify({"error": e.errors()}), 400
 
-    comment = post_service.add_comment(post_id, user_id, body.text, parent_id=body.parent_id)
-    return jsonify(comment), 201
+    try:
+        comment = post_service.add_comment(post_id, user_id, body.text, parent_id=body.parent_id)
+        return jsonify(comment), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.exception("Failed to create comment")
+        return jsonify({"error": str(e) or "Failed to create comment"}), 500
 
 
 @post_bp.route("/comments/<comment_id>", methods=["DELETE"])

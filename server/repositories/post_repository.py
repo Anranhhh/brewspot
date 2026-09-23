@@ -353,35 +353,44 @@ def get_comments_for_post(post_id: str) -> list[dict]:
     try:
         response = (
             client.table("comments")
-            .select("*, profiles!comments_user_id_fkey(id, username, display_name, avatar_url)")
-            .eq("post_id", post_id)
-            .order("created_at", desc=False)
-            .execute()
-        )
-        return response.data
-    except Exception:
-        response = (
-            client.table("comments")
+            # Do not depend on PostgREST relationship metadata here. Older
+            # databases may still have the legacy users FK/schema cache.
             .select("*")
             .eq("post_id", post_id)
             .order("created_at", desc=False)
             .execute()
         )
         return response.data
+    except Exception:
+        logger.exception("Failed to load comments for post %s", post_id)
+        raise
 
 
 def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None = None) -> dict:
     client = get_supabase_client()
-    payload = {"post_id": post_id, "user_id": user_id, "body": text}
+    # The current comments table uses `text`; retain a fallback for older
+    # deployments that still use `body`.
+    payload = {"post_id": post_id, "user_id": user_id, "text": text}
     if parent_id:
+        parent = (
+            client.table("comments")
+            .select("id, post_id")
+            .eq("id", parent_id)
+            .limit(1)
+            .execute()
+        )
+        if not parent.data:
+            raise ValueError("The comment you are replying to no longer exists.")
+        if parent.data[0].get("post_id") != post_id:
+            raise ValueError("A reply must belong to the same post as its parent comment.")
         payload["parent_id"] = parent_id
 
     try:
         response = client.table("comments").insert(payload).execute()
     except Exception as e:
-        if "body" in str(e):
-            payload["text"] = text
-            payload.pop("body", None)
+        if "text" in str(e):
+            payload["body"] = text
+            payload.pop("text", None)
             response = client.table("comments").insert(payload).execute()
         else:
             raise e
@@ -390,12 +399,7 @@ def create_comment(post_id: str, user_id: str, text: str, parent_id: str | None 
     comment_id = inserted.get("id")
     if comment_id:
         try:
-            res = (
-                client.table("comments")
-                .select("*, profiles!comments_user_id_fkey(id, username, display_name, avatar_url)")
-                .eq("id", comment_id)
-                .execute()
-            )
+            res = client.table("comments").select("*").eq("id", comment_id).execute()
             if res.data:
                 return res.data[0]
         except Exception:

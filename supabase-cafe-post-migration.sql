@@ -90,6 +90,12 @@ alter table public.saved_posts drop constraint if exists saved_posts_user_id_fke
 alter table public.saved_posts add constraint saved_posts_user_id_fkey
   foreign key (user_id) references public.profiles(id) on delete cascade not valid;
 
+-- Comments must also use Auth-backed profiles. This repairs older comments
+-- tables that still reference public.users without deleting legacy comments.
+alter table public.comments drop constraint if exists comments_user_id_fkey;
+alter table public.comments add constraint comments_user_id_fkey
+  foreign key (user_id) references public.profiles(id) on delete cascade not valid;
+
 -- Community post images are public Supabase Storage objects. The first path
 -- segment is the authenticated user's UUID, matching the frontend uploader.
 insert into storage.buckets (id, name, public)
