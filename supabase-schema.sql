@@ -176,6 +176,13 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Notification API compatibility columns. Existing installations should run
+-- supabase-notifications-migration.sql to repair legacy foreign keys.
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS action TEXT;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS text TEXT DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS target TEXT;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS system BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Enable Row Level Security (RLS) across all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cafes ENABLE ROW LEVEL SECURITY;

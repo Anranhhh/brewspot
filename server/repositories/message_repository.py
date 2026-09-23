@@ -71,7 +71,10 @@ def get_notifications(user_id: str) -> list[dict]:
     client = get_supabase_client()
     raw_data = []
     try:
-        response = client.table("notifications").select("*, actor:profiles!actor_id(id, username, display_name, avatar_url)").eq("user_id", user_id).order("created_at", desc=True).execute()
+        # Fetch notification rows independently of PostgREST relationship
+        # metadata. This works with both the current profiles FK and older
+        # deployments whose schema cache still exposes a legacy relationship.
+        response = client.table("notifications").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
         raw_data = response.data or []
     except Exception as e:
         logger.warning(f"Error fetching notifications with profiles fkey: {e}. Trying fallback.")
@@ -102,7 +105,11 @@ def get_notifications(user_id: str) -> list[dict]:
             "actor_id": actor_id,
             "action": notif.get("action") or notif.get("type") or "interacted with your content",
             "text": notif.get("text", ""),
-            "target": notif.get("target"),
+            "target": notif.get("target") or (
+                f"{notif.get('post_id')}:{notif.get('comment_id')}"
+                if notif.get("post_id") and notif.get("comment_id")
+                else notif.get("post_id")
+            ),
             "system": bool(notif.get("system")),
             "read": bool(notif.get("read")),
             "created_at": notif.get("created_at"),
@@ -117,7 +124,7 @@ def get_notifications(user_id: str) -> list[dict]:
 
 def create_notification(user_id: str, action: str, text: str = "", target: str | None = None, actor_id: str | None = None, system: bool = False) -> dict | None:
     client = get_supabase_client()
-    payload = {
+    modern_payload = {
         "user_id": user_id,
         "action": action,
         "text": text,
@@ -126,11 +133,33 @@ def create_notification(user_id: str, action: str, text: str = "", target: str |
         "system": system
     }
     try:
-        response = client.table("notifications").insert(payload).execute()
+        response = client.table("notifications").insert(modern_payload).execute()
         return response.data[0] if response.data else None
     except Exception as e:
-        logger.error(f"Error creating notification: {e}")
-        return None
+        error_text = str(e)
+        # A constraint/data error is not a schema-version mismatch. Retrying
+        # with the legacy payload would only hide the real problem and can
+        # reference columns that do not exist in the current table.
+        if "23503" in error_text or "violates" in error_text:
+            logger.error("Notification insert rejected by database constraints: %s", e)
+            return None
+        # Backward-compatible shape for the original notifications table,
+        # which uses type/post_id/comment_id instead of action/text/target.
+        try:
+            post_id, comment_id = (target.split(":", 1) + [None])[:2] if target else (None, None)
+            legacy_payload = {
+                "user_id": user_id,
+                "actor_id": actor_id,
+                "type": action,
+                "post_id": post_id,
+                "comment_id": comment_id,
+                "read": False,
+            }
+            response = client.table("notifications").insert(legacy_payload).execute()
+            return response.data[0] if response.data else None
+        except Exception as legacy_error:
+            logger.error("Error creating notification: %s; legacy fallback: %s", e, legacy_error)
+            return None
 
 
 def get_direct_messages(user_id: str) -> list[dict]:

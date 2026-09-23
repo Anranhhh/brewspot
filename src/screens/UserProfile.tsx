@@ -33,6 +33,7 @@ export default function UserProfileScreen({
     const [isFollowing, setIsFollowing] = useState(false);
     const [followersCount, setFollowersCount] = useState(0);
     const [followingCount, setFollowingCount] = useState(0);
+    const [isUpdatingFollow, setIsUpdatingFollow] = useState(false);
     const [userPosts, setUserPosts] = useState<Post[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
@@ -91,24 +92,34 @@ export default function UserProfileScreen({
     }, [user, allPosts, targetName]);
 
     const handleToggleFollow = async () => {
+        if (isUpdatingFollow) return;
+
         const targetId = user?.id || user?.name || targetName;
-        // Optimistic UI update for instant click feedback
-        setIsFollowing((prev) => {
-            const next = !prev;
-            setFollowersCount((count) => (next ? count + 1 : Math.max(0, count - 1)));
-            return next;
-        });
+        const previousFollowing = isFollowing;
+        const previousFollowersCount = followersCount;
+        setIsUpdatingFollow(true);
 
         try {
             const res = await toggleFollowUser(targetId);
             if (res) {
+                // The API returns the authoritative count after the database
+                // toggle. Do not increment locally as well, or the UI briefly
+                // shows count + 1 before the server response arrives.
                 setIsFollowing(Boolean(res.isFollowing));
-                setFollowersCount(res.followersCount ?? 0);
+                setFollowersCount(Number.isFinite(res.followersCount) ? res.followersCount : previousFollowersCount);
+                setTargetProfileData((previous) => previous ? {
+                    ...previous,
+                    isFollowing: Boolean(res.isFollowing),
+                    followersCount: res.followersCount,
+                } : previous);
             }
         } catch (err) {
             console.warn('Follow API error:', err);
-            // Revert state on error
-            setIsFollowing((prev) => !prev);
+            // Restore the exact state from before the request if it fails.
+            setIsFollowing(previousFollowing);
+            setFollowersCount(previousFollowersCount);
+        } finally {
+            setIsUpdatingFollow(false);
         }
     };
 
@@ -222,12 +233,14 @@ export default function UserProfileScreen({
                 {/* Action Buttons: Follow / Message */}
                 <div className="flex gap-3 mt-6 w-full max-w-sm">
                     <button
+                        type="button"
                         onClick={handleToggleFollow}
+                        disabled={isUpdatingFollow}
                         className={`flex-1 py-3 font-semibold rounded-full shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                             isFollowing
                                 ? 'bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200'
                                 : 'bg-[#E14D4D] text-white shadow-primary/20 hover:opacity-90'
-                        }`}
+                        } ${isUpdatingFollow ? 'opacity-60 cursor-wait' : ''}`}
                     >
                         {isFollowing ? (
                             <>
