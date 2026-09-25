@@ -401,6 +401,8 @@ def delete_comment(user_id: str, comment_id: str) -> dict:
         raise PermissionError("You are not authorized to delete this comment")
 
     success = post_repository.delete_comment_by_id(comment_id)
+    if not success:
+        raise ValueError("Comment was not deleted. Please refresh and try again.")
     return {"success": success, "message": "Comment deleted successfully"}
 
 

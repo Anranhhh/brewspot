@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Post } from '../types';
@@ -37,6 +37,8 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
     // Comment Action Modal & Reply State
     const [selectedComment, setSelectedComment] = useState<any | null>(null);
     const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
+    const commentsVersion = useRef(0);
+    const deletedCommentIds = useRef<Set<string>>(new Set());
 
     // Verify if current user is the author of this post
     const isMyPost = Boolean(
@@ -51,12 +53,15 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
 
     useEffect(() => {
         setActiveImageIndex(0);
+        deletedCommentIds.current.clear();
+        const requestVersion = commentsVersion.current;
         setIsLoadingComments(true);
         api.getComments(post.id)
             .then((fetched) => {
-                if (fetched) {
-                    setCommentsList(fetched);
-                    setCommentsCount(fetched.length);
+                if (fetched && requestVersion === commentsVersion.current) {
+                    const visibleComments = fetched.filter((comment) => !deletedCommentIds.current.has(comment.id));
+                    setCommentsList(visibleComments);
+                    setCommentsCount(visibleComments.length);
                 }
             })
             .catch((err) => console.warn('Failed to load comments:', err))
@@ -90,26 +95,36 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
         setIsPostingComment(true);
 
         try {
+            const mutationVersion = ++commentsVersion.current;
             const newComment = await api.addComment(post.id, text, parentId);
             if (newComment) {
-                // Replace the temporary UI state with the canonical persisted
-                // list so comments cannot disappear when the screen refreshes.
-                try {
-                    const persistedComments = await api.getComments(post.id);
-                    setCommentsList(persistedComments);
-                    setCommentsCount(persistedComments.length);
-                } catch (refreshError) {
-                    // The insert succeeded; retain the returned row if a
-                    // transient follow-up read fails.
-                    console.warn('Comment saved, but refreshing comments failed:', refreshError);
-                    setCommentsList((prev) => (
-                        prev.some((comment) => comment.id === newComment.id)
-                            ? prev
-                            : [...prev, newComment]
-                    ));
-                    setCommentsCount((count) => count + 1);
-                }
+                // Render the server-created row immediately. Do not wait for
+                // a second network request before giving the user feedback.
+                setCommentsList((prev) => (
+                    prev.some((comment) => comment.id === newComment.id)
+                        ? prev
+                        : [...prev, newComment]
+                ));
+                setCommentsCount((count) => count + 1);
                 setReplyingTo(null);
+
+                // Reconcile in the background. Keep the just-created row if
+                // the read is briefly behind the insert.
+                void api.getComments(post.id)
+                    .then((persistedComments) => {
+                        if (mutationVersion !== commentsVersion.current) return;
+                        setCommentsList((current) => {
+                            const persistedIds = new Set(persistedComments.map((comment) => comment.id));
+                            const visibleComments = persistedComments.filter((comment) => !deletedCommentIds.current.has(comment.id));
+                            const pendingRows = current.filter((comment) => !persistedIds.has(comment.id) && !deletedCommentIds.current.has(comment.id));
+                            const merged = [...visibleComments, ...pendingRows];
+                            setCommentsCount(merged.length);
+                            return merged;
+                        });
+                    })
+                    .catch((refreshError) => {
+                        console.warn('Comment saved, but background refresh failed:', refreshError);
+                    });
             }
         } catch (err: any) {
             console.error('Failed to post comment:', err);
@@ -137,12 +152,31 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
     };
 
     const handleDeleteComment = async (commentId: string) => {
+        const removedIds = new Set<string>([commentId]);
+        let foundChild = true;
+        while (foundChild) {
+            foundChild = false;
+            commentsList.forEach((comment) => {
+                const parentId = comment.parent_id || comment.parentId;
+                if (parentId && removedIds.has(parentId) && !removedIds.has(comment.id)) {
+                    removedIds.add(comment.id);
+                    foundChild = true;
+                }
+            });
+        }
+        const removedComments = commentsList.filter((comment) => removedIds.has(comment.id));
+        deletedCommentIds.current = new Set([...deletedCommentIds.current, ...removedIds]);
+        ++commentsVersion.current;
+        setCommentsList((prev) => prev.filter((comment) => !removedIds.has(comment.id)));
+        setCommentsCount((count) => Math.max(0, count - removedIds.size));
+
         try {
             await api.deleteComment(commentId);
-            setCommentsList((prev) => prev.filter((c) => c.id !== commentId && c.parent_id !== commentId && c.parentId !== commentId));
-            setCommentsCount((count) => Math.max(0, count - 1));
         } catch (err: any) {
             console.error('Failed to delete comment:', err);
+            removedIds.forEach((id) => deletedCommentIds.current.delete(id));
+            setCommentsList((prev) => [...prev, ...removedComments]);
+            setCommentsCount((count) => count + removedComments.length);
             alert(err?.message || 'Failed to delete comment.');
         }
     };

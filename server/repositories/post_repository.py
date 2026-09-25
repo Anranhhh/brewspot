@@ -428,5 +428,9 @@ def get_comment_by_id(comment_id: str) -> dict | None:
 
 def delete_comment_by_id(comment_id: str) -> bool:
     client = get_supabase_client()
+    # Do not depend on DELETE ... RETURNING. Supabase/PostgREST can return an
+    # empty response for a successful delete depending on the deployment's
+    # return representation settings.
     client.table("comments").delete().eq("id", comment_id).execute()
-    return True
+    remaining = client.table("comments").select("id").eq("id", comment_id).limit(1).execute()
+    return not bool(remaining.data)

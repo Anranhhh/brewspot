@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Grid, MessageSquare, UserCheck, UserPlus, MoreVertical, Flag, Ban } from 'lucide-react';
 import { Post, Screen } from '../types';
@@ -39,13 +39,15 @@ export default function UserProfileScreen({
     const [showMenu, setShowMenu] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [showBlockModal, setShowBlockModal] = useState(false);
+    const profileRequestVersion = useRef(0);
 
     // Fetch real profile stats from API
     useEffect(() => {
         const targetId = user?.id || user?.name || 'user';
+        const requestVersion = ++profileRequestVersion.current;
         getUserProfile(targetId)
             .then((data) => {
-                if (data) {
+                if (data && requestVersion === profileRequestVersion.current) {
                     setTargetProfileData(data);
                     setIsFollowing(Boolean(data.isFollowing));
                     setFollowersCount(data.followersCount || 0);
@@ -97,6 +99,9 @@ export default function UserProfileScreen({
         const targetId = user?.id || user?.name || targetName;
         const previousFollowing = isFollowing;
         const previousFollowersCount = followersCount;
+        // Invalidate any profile request that started before this mutation;
+        // its older count must not overwrite the follow response.
+        ++profileRequestVersion.current;
         setIsUpdatingFollow(true);
 
         try {
