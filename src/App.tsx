@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import * as api from './services/api';
-import { supabase } from './services/supabaseClient';
+import { PASSWORD_RECOVERY_STORAGE_KEY, supabase } from './services/supabaseClient';
 import {
   Home,
   Plus,
@@ -34,7 +34,8 @@ function hasPasswordRecoveryLink(): boolean {
   const searchParams = new URLSearchParams(window.location.search);
   return window.location.pathname === '/reset-password'
     || hashParams.get('type') === 'recovery'
-    || searchParams.get('type') === 'recovery';
+    || searchParams.get('type') === 'recovery'
+    || window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) === '1';
 }
 
 export default function App() {
@@ -519,6 +520,8 @@ export default function App() {
           {currentScreen === 'reset-password' && (
             <ResetPassword onComplete={() => {
               recoveryLinkRef.current = false;
+              window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+              window.history.replaceState({}, document.title, '/');
               navigateTo('login');
             }} />
           )}

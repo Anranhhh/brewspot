@@ -27,9 +27,12 @@ createRoot(document.getElementById('root')!).render(
 // Register Service Worker for PWA support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
         console.log('ServiceWorker registration successful with scope: ', registration.scope);
+        // Check for a newly deployed shell immediately so an older cached PWA
+        // cannot serve stale auth/recovery code on the next navigation.
+        return registration.update();
       })
       .catch((error) => {
         console.error('ServiceWorker registration failed: ', error);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'brewspot-cache-v1';
+const CACHE_NAME = 'brewspot-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -41,8 +41,29 @@ self.addEventListener('fetch', (event) => {
   // Allow standard http/https schemes only, ignore chrome-extension / internal schemes
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // API responses contain auth- and user-specific data. Never cache them.
+  if (url.pathname.startsWith('/api/')) return;
+
   // Skip dev server socket/module endpoints
   if (url.pathname.includes('/@vite') || url.pathname.includes('/node_modules') || url.pathname.includes('hmr') || url.port === '5050' || url.port === '5051') {
+    return;
+  }
+
+  // Always fetch navigations first so a newly deployed recovery route cannot
+  // be replaced by a stale cached index.html. Fall back to the cached shell
+  // only when the device is offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
     return;
   }
 

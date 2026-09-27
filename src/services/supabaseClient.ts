@@ -1,5 +1,22 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+export const PASSWORD_RECOVERY_STORAGE_KEY = 'brewspot-password-recovery';
+
+// Supabase may consume and clean the recovery hash while the client is being
+// initialized. Capture the flow before createClient() runs so the React app
+// can still keep the user on ResetPassword after a refresh.
+if (typeof window !== 'undefined') {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(window.location.search);
+  if (
+    window.location.pathname === '/reset-password' ||
+    hashParams.get('type') === 'recovery' ||
+    searchParams.get('type') === 'recovery'
+  ) {
+    window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, '1');
+  }
+}
+
 // These are browser-safe Supabase client settings. Vercel should still set
 // VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY explicitly; the real project
 // fallback prevents a missing build variable from becoming a vague fetch
