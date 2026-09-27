@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import * as api from './services/api';
 import { supabase } from './services/supabaseClient';
@@ -13,6 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Screen, Post, Cafe } from './types';
 import Login from './screens/Login';
 import Register from './screens/Register';
+import ForgotPassword from './screens/ForgotPassword';
+import ResetPassword from './screens/ResetPassword';
 import Discovery from './screens/Discovery';
 import Explore from './screens/Explore';
 import CafeDetails from './screens/CafeDetails';
@@ -26,9 +28,20 @@ import NewPost from './screens/NewPost';
 import Success from './screens/Success';
 import AuthPrompt from './components/AuthPrompt';
 
+function hasPasswordRecoveryLink(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(window.location.search);
+  return window.location.pathname === '/reset-password'
+    || hashParams.get('type') === 'recovery'
+    || searchParams.get('type') === 'recovery';
+}
+
 export default function App() {
   // App opens to Discovery screen by default (Guest Mode supported)
-  const [currentScreen, setCurrentScreen] = useState<Screen>('discovery');
+  const recoveryLinkAtLoad = hasPasswordRecoveryLink();
+  const recoveryLinkRef = useRef(recoveryLinkAtLoad);
+  const [currentScreen, setCurrentScreen] = useState<Screen>(() => recoveryLinkAtLoad ? 'reset-password' : 'discovery');
   const [selectedCafe, setSelectedCafe] = useState<Cafe | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -98,6 +111,9 @@ export default function App() {
             profile: session.user.user_metadata?.avatar_url || null,
           });
         }
+        if (recoveryLinkRef.current) {
+          setCurrentScreen('reset-password');
+        }
       } else {
         localStorage.removeItem('brewspot_token');
         setCurrentUser(null);
@@ -108,6 +124,16 @@ export default function App() {
 
     // 2. Auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || recoveryLinkRef.current) {
+        // Supabase has established the temporary recovery session. Keep the
+        // user on the reset screen until they explicitly choose a new password.
+        setCurrentScreen('reset-password');
+        // Some Supabase redirect configurations emit SIGNED_IN instead of
+        // PASSWORD_RECOVERY after consuming the URL hash. Do not treat that
+        // session as a normal login while the recovery link is active.
+        if (event === 'PASSWORD_RECOVERY' || session?.user) return;
+      }
+
       if (session?.user) {
         if (session.access_token) {
           localStorage.setItem('brewspot_token', session.access_token);
@@ -343,16 +369,6 @@ export default function App() {
     }
   };
 
-  // Real Password Reset Flow
-  const handleResetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
-    });
-    if (error) {
-      throw new Error(error.message);
-    }
-  };
-
   // Real Logout Flow
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -483,7 +499,7 @@ export default function App() {
             <Login
               onLogin={handleLogin}
               onGoToRegister={() => navigateTo('register')}
-              onResetPassword={handleResetPassword}
+              onForgotPassword={() => navigateTo('forgot-password')}
               onBrowseAsGuest={() => navigateTo('discovery')}
             />
           )}
@@ -494,6 +510,17 @@ export default function App() {
               onGoToLogin={() => navigateTo('login')}
               onBrowseAsGuest={() => navigateTo('discovery')}
             />
+          )}
+
+          {currentScreen === 'forgot-password' && (
+            <ForgotPassword onBack={() => navigateTo('login')} />
+          )}
+
+          {currentScreen === 'reset-password' && (
+            <ResetPassword onComplete={() => {
+              recoveryLinkRef.current = false;
+              navigateTo('login');
+            }} />
           )}
 
           {currentScreen === 'success' && (
@@ -641,6 +668,8 @@ export default function App() {
         {/* Navigation Bar */}
         {currentScreen !== 'login' &&
           currentScreen !== 'register' &&
+          currentScreen !== 'forgot-password' &&
+          currentScreen !== 'reset-password' &&
           currentScreen !== 'success' &&
           currentScreen !== 'new-post' &&
           currentScreen !== 'user-profile' &&

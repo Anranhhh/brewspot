@@ -1,4 +1,4 @@
-export type Screen = 'login' | 'register' | 'discovery' | 'cafe-details' | 'profile' | 'user-profile' | 'edit-profile' | 'new-post' | 'messages' | 'chat-window' | 'post-details' | 'explore' | 'success';
+export type Screen = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'discovery' | 'cafe-details' | 'profile' | 'user-profile' | 'edit-profile' | 'new-post' | 'messages' | 'chat-window' | 'post-details' | 'explore' | 'success';
 
 export interface Author {
   id?: string;

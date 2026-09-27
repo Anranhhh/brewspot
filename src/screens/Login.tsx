@@ -1,22 +1,20 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Rocket, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { Rocket, Eye, EyeOff } from 'lucide-react';
 
 type LoginScreenProps = {
     onLogin: (email: string, pass: string) => Promise<void>;
     onGoToRegister: () => void;
-    onResetPassword?: (email: string) => Promise<void>;
+    onForgotPassword: () => void;
     onBrowseAsGuest?: () => void;
 };
 
-export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrowseAsGuest }: LoginScreenProps) {
+export default function Login({ onLogin, onGoToRegister, onForgotPassword, onBrowseAsGuest }: LoginScreenProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
-    const [isResetting, setIsResetting] = useState(false);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -25,33 +23,12 @@ export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrow
         }
         setIsLoading(true);
         setError(null);
-        setResetSuccessMessage(null);
         try {
             await onLogin(email, password);
         } catch (err: any) {
             setError(err.message || 'Login failed. Please check your credentials.');
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleForgotPassword = async () => {
-        if (!email) {
-            setError('Please enter your email address above to reset your password.');
-            return;
-        }
-        if (!onResetPassword) return;
-
-        setIsResetting(true);
-        setError(null);
-        setResetSuccessMessage(null);
-        try {
-            await onResetPassword(email);
-            setResetSuccessMessage(`Password reset link sent to ${email}. Check your inbox.`);
-        } catch (err: any) {
-            setError(err.message || 'Could not send password reset email.');
-        } finally {
-            setIsResetting(false);
         }
     };
 
@@ -83,19 +60,13 @@ export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrow
                             {error}
                         </div>
                     )}
-                    {resetSuccessMessage && (
-                        <div className="bg-emerald-50 text-emerald-600 text-sm px-4 py-2.5 rounded-xl text-center shadow-sm flex items-center justify-center gap-2">
-                            <CheckCircle2 size={16} />
-                            <span>{resetSuccessMessage}</span>
-                        </div>
-                    )}
                     <input
                         className="w-full h-14 bg-white/60 backdrop-blur-sm border border-slate-200 rounded-full px-6 text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/30 transition-all outline-none"
                         placeholder="Email Address"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        disabled={isLoading || isResetting}
+                        disabled={isLoading}
                     />
                     <div className="relative w-full">
                         <input
@@ -104,7 +75,7 @@ export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrow
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            disabled={isLoading || isResetting}
+                            disabled={isLoading}
                             onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                         />
                         <button
@@ -120,7 +91,7 @@ export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrow
 
                 <button
                     onClick={handleLogin}
-                    disabled={isLoading || isResetting}
+                    disabled={isLoading}
                     className="w-full h-14 bg-primary text-white rounded-full font-bold text-lg shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all mt-2 disabled:opacity-70"
                 >
                     {isLoading ? 'Signing In...' : 'Sign In'}
@@ -129,11 +100,10 @@ export default function Login({ onLogin, onGoToRegister, onResetPassword, onBrow
                 <div className="pt-4 flex flex-col items-center gap-3">
                     <button
                         type="button"
-                        onClick={handleForgotPassword}
-                        disabled={isResetting}
+                        onClick={onForgotPassword}
                         className="text-sm font-medium text-slate-500 hover:text-primary transition-colors disabled:opacity-50"
                     >
-                        {isResetting ? 'Sending reset link...' : 'Forgot Password?'}
+                        Forgot Password?
                     </button>
                     <p className="text-sm text-slate-500">
                         New here? {' '}
