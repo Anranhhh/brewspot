@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { Analytics } from '@vercel/analytics/react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, NavLink } from 'react-router-dom';
 import * as api from './services/api';
 import { PASSWORD_RECOVERY_STORAGE_KEY, supabase } from './services/supabaseClient';
 import {
@@ -9,23 +10,23 @@ import {
   MessageSquare,
   Map,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Screen, Post, Cafe } from './types';
-import Login from './screens/Login';
-import Register from './screens/Register';
-import ForgotPassword from './screens/ForgotPassword';
-import ResetPassword from './screens/ResetPassword';
-import Discovery from './screens/Discovery';
-import Explore from './screens/Explore';
-import CafeDetails from './screens/CafeDetails';
-import PostDetails from './screens/PostDetails';
-import Profile from './screens/Profile';
-import UserProfile from './screens/UserProfile';
-import EditProfileScreen from './screens/EditProfile';
-import Messages from './screens/Messages';
-import ChatWindow from './screens/ChatWindow';
-import NewPost from './screens/NewPost';
-import Success from './screens/Success';
+const Login = lazy(() => import('./screens/Login'));
+const Register = lazy(() => import('./screens/Register'));
+const ForgotPassword = lazy(() => import('./screens/ForgotPassword'));
+const ResetPassword = lazy(() => import('./screens/ResetPassword'));
+const Discovery = lazy(() => import('./screens/Discovery'));
+const Explore = lazy(() => import('./screens/Explore'));
+const CafeDetails = lazy(() => import('./screens/CafeDetails'));
+const PostDetails = lazy(() => import('./screens/PostDetails'));
+const Profile = lazy(() => import('./screens/Profile'));
+const UserProfile = lazy(() => import('./screens/UserProfile'));
+const EditProfileScreen = lazy(() => import('./screens/EditProfile'));
+const Messages = lazy(() => import('./screens/Messages'));
+const ChatWindow = lazy(() => import('./screens/ChatWindow'));
+const NewPost = lazy(() => import('./screens/NewPost'));
+const Success = lazy(() => import('./screens/Success'));
 import AuthPrompt from './components/AuthPrompt';
 
 function hasPasswordRecoveryLink(): boolean {
@@ -38,28 +39,81 @@ function hasPasswordRecoveryLink(): boolean {
     || window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) === '1';
 }
 
+function screenForPath(pathname: string): Screen {
+  if (pathname === '/') return 'discovery';
+  if (pathname === '/profile/me') return 'profile';
+  if (pathname === '/profile/me/edit') return 'edit-profile';
+  if (pathname.startsWith('/profile/')) return 'user-profile';
+  if (pathname.startsWith('/post/')) return 'post-details';
+  if (pathname.startsWith('/cafe/')) return 'cafe-details';
+  if (pathname.startsWith('/messages/')) return 'chat-window';
+  if (pathname === '/messages') return 'messages';
+  if (pathname === '/new-post') return 'new-post';
+  if (pathname === '/explore') return 'explore';
+  if (pathname === '/forgot-password') return 'forgot-password';
+  if (pathname === '/reset-password') return 'reset-password';
+  if (pathname === '/register') return 'register';
+  if (pathname === '/login') return 'login';
+  if (pathname === '/success') return 'success';
+  return 'discovery';
+}
+
 export default function App() {
-  // App opens to Discovery screen by default (Guest Mode supported)
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+}
+
+function AppContent() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // The URL is the source of truth for the active page. React state below is
+  // reserved for server data and temporary UI state, not page identity.
   const recoveryLinkAtLoad = hasPasswordRecoveryLink();
   const recoveryLinkRef = useRef(recoveryLinkAtLoad);
-  const [currentScreen, setCurrentScreen] = useState<Screen>(() => recoveryLinkAtLoad ? 'reset-password' : 'discovery');
-  const [selectedCafe, setSelectedCafe] = useState<Cafe | null>(null);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [cafes, setCafes] = useState<Cafe[]>([]);
-  const [previousScreen, setPreviousScreen] = useState<Screen | null>(null);
   const [profileTab, setProfileTab] = useState<'posts' | 'liked' | 'saved' | 'shops'>('posts');
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; profile: string | null } | null>(null);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [isLoadingFeed, setIsLoadingFeed] = useState(false);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const feedLoadedRef = useRef(false);
+
+  const activePostId = location.pathname.startsWith('/post/')
+    ? decodeURIComponent(location.pathname.slice('/post/'.length))
+    : null;
+  const activeCafeId = location.pathname.startsWith('/cafe/')
+    ? decodeURIComponent(location.pathname.slice('/cafe/'.length))
+    : null;
+  const activeUserId = location.pathname.startsWith('/profile/') && location.pathname !== '/profile/me' && location.pathname !== '/profile/me/edit'
+    ? decodeURIComponent(location.pathname.slice('/profile/'.length))
+    : null;
+  const activeRecipientId = location.pathname.startsWith('/messages/')
+    ? decodeURIComponent(location.pathname.slice('/messages/'.length))
+    : null;
+  const newPostCafeId = new URLSearchParams(location.search).get('cafeId');
+  const activePost = activePostId ? posts.find((post) => post.id === activePostId) || null : null;
+  const activeCafe = activeCafeId ? cafes.find((cafe) => cafe.id === activeCafeId) || null : null;
+  const currentScreen = screenForPath(location.pathname);
+  const selectedPost = activePost;
+  const selectedCafe = activeCafe;
 
   // AuthPrompt Modal State
   const [isAuthPromptOpen, setIsAuthPromptOpen] = useState(false);
   const [authPromptTitle, setAuthPromptTitle] = useState('Join BrewSpot');
   const [authPromptSubtitle, setAuthPromptSubtitle] = useState('Create a BrewSpot account to interact, save cafés, and share your favorite coffee spots.');
   const [pendingAuthAction, setPendingAuthAction] = useState<(() => void) | null>(null);
+  const [selectedUser, setSelectedUser] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [exploreSearchQuery, setExploreSearchQuery] = useState<string>('');
+  const [newPostCafe, setNewPostCafe] = useState<Cafe | null>(null);
+  const [messageRecipient, setMessageRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [chatRecipient, setChatRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fetchFeedData = useCallback(async () => {
     setIsLoadingFeed(true);
@@ -72,6 +126,7 @@ export default function App() {
       ]);
       setCafes(trendingCafes.length ? trendingCafes : fetchedCafes);
       setPosts(fetchedPosts);
+      feedLoadedRef.current = true;
     } catch (err) {
       console.error('Failed to fetch feed data:', err);
       const message = err instanceof Error ? err.message : 'Could not load discovery feed.';
@@ -97,27 +152,31 @@ export default function App() {
   useEffect(() => {
     // 1. Initial user check
     const syncUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        if (session.access_token) {
-          localStorage.setItem('brewspot_token', session.access_token);
-        }
-        const profile = await api.getMe();
-        if (profile?.user) {
-          setCurrentUser(profile.user);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          if (session.access_token) {
+            localStorage.setItem('brewspot_token', session.access_token);
+          }
+          const profile = await api.getMe();
+          if (profile?.user) {
+            setCurrentUser(profile.user);
+          } else {
+            setCurrentUser({
+              id: session.user.id,
+              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+              profile: session.user.user_metadata?.avatar_url || null,
+            });
+          }
+          if (recoveryLinkRef.current && window.location.pathname !== '/reset-password') {
+            navigate('/reset-password', { replace: true });
+          }
         } else {
-          setCurrentUser({
-            id: session.user.id,
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-            profile: session.user.user_metadata?.avatar_url || null,
-          });
+          localStorage.removeItem('brewspot_token');
+          setCurrentUser(null);
         }
-        if (recoveryLinkRef.current) {
-          setCurrentScreen('reset-password');
-        }
-      } else {
-        localStorage.removeItem('brewspot_token');
-        setCurrentUser(null);
+      } finally {
+        setIsAuthResolved(true);
       }
     };
 
@@ -128,7 +187,9 @@ export default function App() {
       if (event === 'PASSWORD_RECOVERY' || recoveryLinkRef.current) {
         // Supabase has established the temporary recovery session. Keep the
         // user on the reset screen until they explicitly choose a new password.
-        setCurrentScreen('reset-password');
+        if (window.location.pathname !== '/reset-password') {
+          navigate('/reset-password', { replace: true });
+        }
         // Some Supabase redirect configurations emit SIGNED_IN instead of
         // PASSWORD_RECOVERY after consuming the URL hash. Do not treat that
         // session as a normal login while the recovery link is active.
@@ -158,22 +219,77 @@ export default function App() {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
-    if (currentScreen === 'discovery' || currentScreen === 'explore') {
-      fetchFeedData();
-    } else if (currentScreen === 'profile') {
-      fetchUserPosts();
+    const isFeedRoute = location.pathname === '/' || location.pathname === '/explore';
+    if (isFeedRoute && !feedLoadedRef.current) {
+      void fetchFeedData();
     }
-  }, [currentScreen, fetchFeedData, fetchUserPosts]);
+    if (location.pathname === '/profile/me') {
+      void fetchUserPosts();
+    }
+  }, [location.pathname, fetchFeedData, fetchUserPosts]);
 
-  const [selectedUser, setSelectedUser] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
-  const [exploreSearchQuery, setExploreSearchQuery] = useState<string>('');
-  const [newPostCafe, setNewPostCafe] = useState<Cafe | null>(null);
-  const [messageRecipient, setMessageRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
-  const [chatRecipient, setChatRecipient] = useState<{ id?: string; name: string; profile?: string | null } | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // Deep links can be opened without the feed having been loaded first.
+  // Resolve only the entity identified by the URL instead of refetching the
+  // entire application dataset.
+  useEffect(() => {
+    if (!activeCafeId || activeCafe) return;
+    api.getCafeById(activeCafeId)
+      .then((cafe) => setCafes((previous) => previous.some((item) => item.id === cafe.id) ? previous : [...previous, cafe]))
+      .catch((error) => console.error('Failed to load café route:', error));
+  }, [activeCafeId, activeCafe]);
+
+  useEffect(() => {
+    if (!activePostId || activePost) return;
+    api.getPostById(activePostId)
+      .then((post) => setPosts((previous) => previous.some((item) => item.id === post.id) ? previous : [...previous, post]))
+      .catch((error) => console.error('Failed to load post route:', error));
+  }, [activePostId, activePost]);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab === 'posts' || tab === 'liked' || tab === 'saved' || tab === 'shops') setProfileTab(tab);
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!activeUserId) return;
+    api.getUserProfile(activeUserId)
+      .then((profile) => {
+        if (profile) setSelectedUser({
+          id: activeUserId,
+          name: profile.display_name || profile.name || profile.username || 'Coffee Lover',
+          profile: profile.profile || null,
+        });
+      })
+      .catch((error) => console.error('Failed to load profile route:', error));
+  }, [activeUserId]);
+
+  useEffect(() => {
+    if (!activeRecipientId) return;
+    api.getUserProfile(activeRecipientId)
+      .then((profile) => {
+        if (profile) setChatRecipient({
+          id: activeRecipientId,
+          name: profile.display_name || profile.name || profile.username || 'Coffee Lover',
+          profile: profile.profile || null,
+        });
+      })
+      .catch((error) => console.error('Failed to load conversation route:', error));
+  }, [activeRecipientId]);
+
+  useEffect(() => {
+    if (!newPostCafeId || newPostCafe) return;
+    const cachedCafe = cafes.find((cafe) => cafe.id === newPostCafeId);
+    if (cachedCafe) {
+      setNewPostCafe(cachedCafe);
+      return;
+    }
+    api.getCafeById(newPostCafeId)
+      .then(setNewPostCafe)
+      .catch((error) => console.error('Failed to load café for new post:', error));
+  }, [newPostCafeId, newPostCafe, cafes]);
 
   // Helper to require authentication for protected actions
   const requireAuth = (
@@ -192,60 +308,55 @@ export default function App() {
   };
 
   const navigateTo = (screen: Screen, data: any = null, tab?: any) => {
-    if (screen !== 'messages') {
-      setIsChatOpen(false);
-    }
-    if (screen !== 'post-details') {
-      setHighlightCommentId(null);
-    }
+    if (screen !== 'post-details') setHighlightCommentId(null);
+    if (screen !== 'messages') setIsChatOpen(false);
 
-    if (screen === 'new-post') setNewPostCafe(data as Cafe);
-    if (screen === 'cafe-details') {
-      setSelectedCafe(data as Cafe);
-      if (data?.id) {
-        void api.getCafeById(data.id)
-          .then((freshCafe) => setSelectedCafe(freshCafe))
-          .catch((err) => console.error('Failed to refresh café details:', err));
+    switch (screen) {
+      case 'discovery': navigate('/'); break;
+      case 'login': navigate('/login'); break;
+      case 'register': navigate('/register'); break;
+      case 'forgot-password': navigate('/forgot-password'); break;
+      case 'reset-password': navigate('/reset-password'); break;
+      case 'success': navigate('/success'); break;
+      case 'explore': {
+        const query = typeof data === 'string' ? data : data?.query;
+        setExploreSearchQuery(query || '');
+        navigate(query ? `/explore?q=${encodeURIComponent(query)}` : '/explore');
+        break;
       }
-    }
-    if (screen === 'post-details') setSelectedPost(data as Post);
-    if (screen === 'profile' && tab) setProfileTab(tab);
-    if (screen === 'user-profile') {
-      if (data && currentUser && (data.id === currentUser.id || data.name === currentUser.name)) {
-        setCurrentScreen('profile');
-        return;
+      case 'profile':
+        if (tab) setProfileTab(tab);
+        navigate(tab ? `/profile/me?tab=${encodeURIComponent(tab)}` : '/profile/me');
+        break;
+      case 'edit-profile': navigate('/profile/me/edit'); break;
+      case 'new-post':
+        setNewPostCafe(data?.id ? data : null);
+        navigate(data?.id ? `/new-post?cafeId=${encodeURIComponent(data.id)}` : '/new-post');
+        break;
+      case 'cafe-details':
+        if (data?.id) {
+          setCafes((previous) => previous.some((cafe) => cafe.id === data.id) ? previous : [...previous, data]);
+          navigate(`/cafe/${encodeURIComponent(data.id)}`);
+        }
+        break;
+      case 'post-details': if (data?.id) navigate(`/post/${encodeURIComponent(data.id)}`); break;
+      case 'user-profile': {
+        const userId = data?.id;
+        if (data) setSelectedUser(data);
+        if (userId && currentUser?.id === userId) navigate('/profile/me');
+        else if (userId) navigate(`/profile/${encodeURIComponent(userId)}`);
+        break;
       }
-      setSelectedUser(data);
-    }
-    if (screen === 'chat-window') {
-      if (data && typeof data === 'object') {
-        setChatRecipient(data.recipient || data);
+      case 'messages': navigate('/messages'); break;
+      case 'chat-window': {
+        const recipient = data?.recipient || data;
+        setChatRecipient(recipient || null);
+        if (recipient?.id) navigate(`/messages/${encodeURIComponent(recipient.id)}`);
+        else navigate('/messages');
+        break;
       }
+      default: navigate('/');
     }
-    if (screen === 'messages') {
-      if (data && typeof data === 'object' && 'recipient' in data) {
-        setMessageRecipient(data.recipient);
-      } else if (data && typeof data === 'object' && 'name' in data) {
-        setMessageRecipient(data);
-      } else {
-        setMessageRecipient(null);
-      }
-    }
-    if (screen === 'explore') {
-      if (data && typeof data === 'object' && 'query' in data) {
-        setExploreSearchQuery(data.query);
-      } else if (typeof data === 'string') {
-        setExploreSearchQuery(data);
-      } else {
-        setExploreSearchQuery('');
-      }
-    }
-
-    if (screen === 'post-details' || screen === 'cafe-details') {
-      setPreviousScreen(currentScreen);
-    }
-
-    setCurrentScreen(screen);
   };
 
   const handleSelectNotificationPost = async (postId: string, commentId?: string) => {
@@ -258,10 +369,8 @@ export default function App() {
       }
     }
     if (targetPost) {
-      setSelectedPost(targetPost);
       setHighlightCommentId(commentId || null);
-      setPreviousScreen(currentScreen);
-      setCurrentScreen('post-details');
+      navigate(`/post/${encodeURIComponent(targetPost.id)}`);
     }
   };
 
@@ -389,9 +498,8 @@ export default function App() {
 
   const handleLike = async (postId: string) => {
     requireAuth(async () => {
-      const previousPosts = posts;
-      const previousUserPosts = userPosts;
-      const previousSelectedPost = selectedPost;
+      const previousSelectedPosts = posts;
+      const previousUserPostState = userPosts;
       const desiredLiked = !(posts.find(p => p.id === postId)?.isLiked);
       const update = (p: Post) =>
         p.id === postId
@@ -400,20 +508,14 @@ export default function App() {
 
       setPosts((prev) => prev.map(update));
       setUserPosts((prev) => prev.map(update));
-      if (selectedPost?.id === postId) {
-        setSelectedPost((prev) => (prev ? update(prev) : null));
-      }
-
       try {
         const result = await api.toggleLikePost(postId, desiredLiked);
         const applyServerState = (p: Post) => p.id === postId ? { ...p, isLiked: result.isLiked, likes: result.likes } : p;
         setPosts(prev => prev.map(applyServerState));
         setUserPosts(prev => prev.map(applyServerState));
-        setSelectedPost(prev => prev?.id === postId ? applyServerState(prev) : prev);
       } catch (err) {
-        setPosts(previousPosts);
-        setUserPosts(previousUserPosts);
-        setSelectedPost(previousSelectedPost);
+        setPosts(previousSelectedPosts);
+        setUserPosts(previousUserPostState);
         console.error('Failed to persist like:', err);
       }
     }, 'Like this post', 'Sign in to like posts and keep track of your favorite coffee moments.');
@@ -421,9 +523,8 @@ export default function App() {
 
   const handleSave = async (postId: string) => {
     requireAuth(async () => {
-      const previousPosts = posts;
-      const previousUserPosts = userPosts;
-      const previousSelectedPost = selectedPost;
+      const previousSavedPosts = posts;
+      const previousSavedUserPosts = userPosts;
       const desiredSaved = !(posts.find(p => p.id === postId)?.isSaved);
       const update = (p: Post) =>
         p.id === postId
@@ -432,20 +533,14 @@ export default function App() {
 
       setPosts((prev) => prev.map(update));
       setUserPosts((prev) => prev.map(update));
-      if (selectedPost?.id === postId) {
-        setSelectedPost((prev) => (prev ? update(prev) : null));
-      }
-
       try {
         const result = await api.toggleSavePost(postId, desiredSaved);
         const applyServerState = (p: Post) => p.id === postId ? { ...p, isSaved: result.isSaved, saves: result.saves } : p;
         setPosts(prev => prev.map(applyServerState));
         setUserPosts(prev => prev.map(applyServerState));
-        setSelectedPost(prev => prev?.id === postId ? applyServerState(prev) : prev);
       } catch (err) {
-        setPosts(previousPosts);
-        setUserPosts(previousUserPosts);
-        setSelectedPost(previousSelectedPost);
+        setPosts(previousSavedPosts);
+        setUserPosts(previousSavedUserPosts);
         console.error('Failed to persist saved post:', err);
       }
     }, 'Save this post', 'Sign in to save posts to your personal collection.');
@@ -454,8 +549,7 @@ export default function App() {
   const handleSaveCafe = async (cafeId: string, cafeDetails?: Cafe) => {
     requireAuth(async () => {
       const previousCafes = cafes;
-      const previousSelectedCafe = selectedCafe;
-      const currentCafe = cafes.find(c => c.id === cafeId) || selectedCafe;
+      const currentCafe = cafes.find(c => c.id === cafeId) || cafeDetails;
       const desiredSaved = !(currentCafe?.isSaved);
       const exists = cafes.some((c) => c.id === cafeId);
       if (exists) {
@@ -466,34 +560,21 @@ export default function App() {
         setCafes((prev) => [...prev, { ...cafeDetails, isSaved: true }]);
       }
 
-      if (selectedCafe?.id === cafeId) {
-        setSelectedCafe((prev) => (prev ? { ...prev, isSaved: !prev.isSaved } : null));
-      }
-
       try {
         const result = await api.toggleSaveCafe(cafeId, cafeDetails, desiredSaved);
         const persistedId = result.cafeId || cafeId;
         setCafes(prev => prev.map(c => c.id === cafeId || c.id === persistedId ? { ...c, id: persistedId, isSaved: result.isSaved } : c));
-        setSelectedCafe(prev => prev?.id === cafeId || prev?.id === persistedId ? { ...prev, id: persistedId, isSaved: result.isSaved } : prev);
       } catch (err) {
         setCafes(previousCafes);
-        setSelectedCafe(previousSelectedCafe);
         console.error("Failed to toggle save cafe:", err);
       }
     }, 'Save this café', 'Create an account to save cafés and build your favorite coffee spots collection.');
   };
 
-  const handleBack = () => {
-    if (previousScreen) {
-      setCurrentScreen(previousScreen);
-      setPreviousScreen(null);
-    } else {
-      setCurrentScreen('discovery');
-    }
-  };
+  const handleBack = () => navigate(-1);
 
-  return (
-    <div className="flex justify-center h-screen h-[100dvh] bg-slate-100 overflow-hidden">
+  const routeContent = (
+    <Suspense fallback={<RouteLoading />}>
       <div className="w-full max-w-[430px] bg-white shadow-2xl relative overflow-hidden flex flex-col h-full">
         <AnimatePresence mode="wait">
           {currentScreen === 'login' && (
@@ -521,7 +602,6 @@ export default function App() {
             <ResetPassword onComplete={() => {
               recoveryLinkRef.current = false;
               window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
-              window.history.replaceState({}, document.title, '/');
               navigateTo('login');
             }} />
           )}
@@ -553,7 +633,7 @@ export default function App() {
             />
           )}
 
-          {currentScreen === 'cafe-details' && selectedCafe && (
+          {currentScreen === 'cafe-details' && (selectedCafe ? (
             <CafeDetails
               cafe={selectedCafe}
               communityPosts={posts.filter((post) => post.cafeId === selectedCafe.id)}
@@ -561,9 +641,9 @@ export default function App() {
               onSave={() => handleSaveCafe(selectedCafe.id, selectedCafe)}
               onAddPhoto={(cafe) => requireAuth(() => navigateTo('new-post', cafe))}
             />
-          )}
+          ) : <RouteLoading />)}
 
-          {currentScreen === 'post-details' && selectedPost && (
+          {currentScreen === 'post-details' && (selectedPost ? (
             <PostDetails
               post={selectedPost}
               currentUser={currentUser}
@@ -578,25 +658,28 @@ export default function App() {
                 void fetchFeedData();
               }}
             />
-          )}
+          ) : <RouteLoading />)}
 
-          {currentScreen === 'profile' && (
+          {currentScreen === 'profile' && (currentUser ? (
             <Profile
               currentUser={currentUser}
               posts={posts}
               userPosts={userPosts}
               cafes={cafes}
               activeTab={profileTab}
-              setActiveTab={setProfileTab}
+              setActiveTab={(tab) => {
+                setProfileTab(tab);
+                navigate(`/profile/me?tab=${encodeURIComponent(tab)}`);
+              }}
               onNavigate={navigateTo}
               onSelectPost={(post) => navigateTo('post-details', post)}
               onSelectCafe={(cafe) => navigateTo('cafe-details', cafe)}
               onLogout={handleLogout}
               onDeleteAccount={handleDeleteAccount}
             />
-          )}
+          ) : isAuthResolved ? <Navigate to="/login" replace /> : <RouteLoading />)}
 
-          {currentScreen === 'messages' && (
+          {currentScreen === 'messages' && (currentUser ? (
             <Messages
               onBack={() => navigateTo('discovery')}
               currentUser={currentUser}
@@ -605,19 +688,20 @@ export default function App() {
               onSelectChat={(targetUser) => navigateTo('chat-window', targetUser)}
               onSelectNotificationPost={handleSelectNotificationPost}
             />
-          )}
+          ) : isAuthResolved ? <Navigate to="/login" replace /> : <RouteLoading />)}
 
-          {currentScreen === 'chat-window' && (
+          {currentScreen === 'chat-window' && (currentUser ? (
             <ChatWindow
               recipient={chatRecipient}
               currentUser={currentUser}
               onBack={() => navigateTo('messages')}
             />
-          )}
+          ) : isAuthResolved ? <Navigate to="/login" replace /> : <RouteLoading />)}
 
           {currentScreen === 'explore' && (
             <Explore
               cafes={cafes}
+              posts={posts}
               initialQuery={exploreSearchQuery}
               isLoading={isLoadingFeed}
               feedError={feedError}
@@ -628,7 +712,7 @@ export default function App() {
             />
           )}
 
-          {currentScreen === 'user-profile' && (
+          {currentScreen === 'user-profile' && (selectedUser ? (
             <UserProfile
               user={selectedUser}
               currentUser={currentUser}
@@ -636,9 +720,9 @@ export default function App() {
               onNavigate={navigateTo}
               onSelectPost={(post) => navigateTo('post-details', post)}
             />
-          )}
+          ) : <RouteLoading />)}
 
-          {currentScreen === 'edit-profile' && (
+          {currentScreen === 'edit-profile' && (currentUser ? (
             <EditProfileScreen
               currentUser={currentUser}
               onNavigate={navigateTo}
@@ -647,15 +731,15 @@ export default function App() {
                 void fetchFeedData();
               }}
             />
-          )}
+          ) : isAuthResolved ? <Navigate to="/login" replace /> : <RouteLoading />)}
 
-          {currentScreen === 'new-post' && (
+          {currentScreen === 'new-post' && (currentUser ? (
             <NewPost
               initialCafe={newPostCafe}
               onClose={() => navigateTo('discovery')}
               onPostCreated={() => void fetchFeedData()}
             />
-          )}
+          ) : isAuthResolved ? <Navigate to="/login" replace /> : <RouteLoading />)}
         </AnimatePresence>
 
         {/* Reusable Guest Auth Prompt Modal */}
@@ -694,6 +778,29 @@ export default function App() {
             />
           )}
       </div>
+    </Suspense>
+  );
+
+  return (
+    <div className="flex justify-center h-screen h-[100dvh] bg-slate-100 overflow-hidden">
+      <Routes>
+        <Route path="/" element={routeContent} />
+        <Route path="/login" element={routeContent} />
+        <Route path="/register" element={routeContent} />
+        <Route path="/forgot-password" element={routeContent} />
+        <Route path="/reset-password" element={routeContent} />
+        <Route path="/success" element={routeContent} />
+        <Route path="/explore" element={routeContent} />
+        <Route path="/messages" element={routeContent} />
+        <Route path="/messages/:recipientId" element={routeContent} />
+        <Route path="/new-post" element={routeContent} />
+        <Route path="/profile/me" element={routeContent} />
+        <Route path="/profile/me/edit" element={routeContent} />
+        <Route path="/profile/:userId" element={routeContent} />
+        <Route path="/post/:postId" element={routeContent} />
+        <Route path="/cafe/:cafeId" element={routeContent} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
       <Analytics />
     </div>
   );
@@ -701,43 +808,56 @@ export default function App() {
 
 // --- Components ---
 
+function RouteLoading() {
+  return (
+    <div className="flex-1 flex items-center justify-center bg-white text-slate-400">
+      <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
+}
+
 function BottomNav({ currentScreen, onNavigate }: { currentScreen: Screen, onNavigate: (s: Screen, data?: any, tab?: any) => void, profileTab: string }) {
   return (
     <nav className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 px-8 py-4 flex items-center justify-between z-40">
-      <button
-        onClick={() => onNavigate('discovery')}
+      <NavLink
+        to="/"
+        onClick={(event) => { event.preventDefault(); onNavigate('discovery'); }}
         className={`flex flex-col items-center gap-1 ${currentScreen === 'discovery' ? 'text-primary' : 'text-slate-400'}`}
       >
         <Home className="w-6 h-6" />
         <span className="text-[10px] font-bold uppercase tracking-tight">Home</span>
-      </button>
-      <button
-        onClick={() => onNavigate('explore')}
+      </NavLink>
+      <NavLink
+        to="/explore"
+        onClick={(event) => { event.preventDefault(); onNavigate('explore'); }}
         className={`flex flex-col items-center gap-1 ${currentScreen === 'explore' ? 'text-primary' : 'text-slate-400'}`}
       >
         <Map className="w-6 h-6" />
         <span className="text-[10px] font-bold uppercase tracking-tight">Map</span>
-      </button>
-      <button
-        onClick={() => onNavigate('new-post')}
+      </NavLink>
+      <NavLink
+        to="/new-post"
+        onClick={(event) => { event.preventDefault(); onNavigate('new-post'); }}
         className="relative -top-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-white shadow-xl shadow-primary/30 border-4 border-white active:scale-95 transition-transform"
       >
         <Plus className="w-8 h-8" />
-      </button>
-      <button
-        onClick={() => onNavigate('messages')}
+      </NavLink>
+      <NavLink
+        to="/messages"
+        onClick={(event) => { event.preventDefault(); onNavigate('messages'); }}
         className={`flex flex-col items-center gap-1 ${currentScreen === 'messages' ? 'text-primary' : 'text-slate-400'}`}
       >
         <MessageSquare className="w-6 h-6" />
         <span className="text-[10px] font-bold uppercase tracking-tight">Chat</span>
-      </button>
-      <button
-        onClick={() => onNavigate('profile')}
+      </NavLink>
+      <NavLink
+        to="/profile/me"
+        onClick={(event) => { event.preventDefault(); onNavigate('profile'); }}
         className={`flex flex-col items-center gap-1 ${currentScreen === 'profile' ? 'text-primary' : 'text-slate-400'}`}
       >
         <User className="w-6 h-6" />
         <span className="text-[10px] font-bold uppercase tracking-tight">Profile</span>
-      </button>
+      </NavLink>
     </nav>
   );
 }

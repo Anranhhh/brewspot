@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, FormEvent } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, Heart, MapPin, MessageCircle, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight, X, Reply, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'react-router-dom';
 import { Post } from '../types';
 import * as api from '../services/api';
 import { ReportModal } from '../components/LegalAndModerationModal';
@@ -17,6 +18,8 @@ type PostDetailScreenProps = {
 };
 
 export default function PostDetail({ post, currentUser, onBack, onLike, onSave, onNavigate, onDeletePost, highlightCommentId }: PostDetailScreenProps) {
+    const { postId: routePostId } = useParams<{ postId: string }>();
+    const resolvedPostId = routePostId || post.id;
     const [commentText, setCommentText] = useState('');
     const [commentsList, setCommentsList] = useState<any[]>([]);
     const [commentsCount, setCommentsCount] = useState<number>(post.comments || 0);
@@ -56,7 +59,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
         deletedCommentIds.current.clear();
         const requestVersion = commentsVersion.current;
         setIsLoadingComments(true);
-        api.getComments(post.id)
+        api.getComments(resolvedPostId)
             .then((fetched) => {
                 if (fetched && requestVersion === commentsVersion.current) {
                     const visibleComments = fetched.filter((comment) => !deletedCommentIds.current.has(comment.id));
@@ -66,7 +69,7 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
             })
             .catch((err) => console.warn('Failed to load comments:', err))
             .finally(() => setIsLoadingComments(false));
-    }, [post.id]);
+    }, [resolvedPostId]);
 
     useEffect(() => {
         if (!isLoadingComments && highlightCommentId) {
@@ -198,6 +201,10 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                 >
                     <img
                         src={comment.author?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
+                        width="40"
+                        height="40"
+                        loading="lazy"
+                        decoding="async"
                         className={`${depth > 0 ? 'w-6 h-6' : 'w-7 h-7'} rounded-full object-cover shrink-0 mt-0.5`}
                         alt={comment.author?.name}
                     />
@@ -328,6 +335,10 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                 >
                     <img
                         src={mediaUrls[activeImageIndex] || undefined}
+                        width="800"
+                        height="800"
+                        fetchPriority="high"
+                        decoding="async"
                         alt="Post media"
                         className="w-full h-full object-cover"
                     />
@@ -379,6 +390,10 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                 <div className="px-6 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-3 mb-3">
                         <img
+                            width="40"
+                            height="40"
+                            loading="lazy"
+                            decoding="async"
                             className="size-8 rounded-full object-cover bg-slate-100"
                             src={post.author?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
                             alt={post.author?.name}
@@ -477,6 +492,10 @@ export default function PostDetail({ post, currentUser, onBack, onLike, onSave, 
                             <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl mb-4 border border-slate-100 text-left">
                                 <img
                                     src={selectedComment.author?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150'}
+                                    width="40"
+                                    height="40"
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-8 h-8 rounded-full object-cover shrink-0"
                                     alt={selectedComment.author?.name}
                                 />

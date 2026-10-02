@@ -63,7 +63,7 @@ export default function NewPost({ onClose, onPostCreated, initialCafe }: NewPost
     };
 
     const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
+        const files = Array.from(e.target.files || []) as File[];
         if (!files.length) return;
         const available = Math.max(0, 10 - photoUrls.length);
         if (files.some((file) => file.size > 10 * 1024 * 1024)) {

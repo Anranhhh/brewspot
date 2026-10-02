@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'react-router-dom';
 import { ChevronLeft, Grid, MessageSquare, UserCheck, UserPlus, MoreVertical, Flag, Ban } from 'lucide-react';
 import { Post, Screen } from '../types';
 import { toggleFollowUser, getUserPosts, getUserProfile, reportContent, blockUser, getPublicAvatarUrl } from '../services/api';
@@ -29,6 +30,7 @@ export default function UserProfileScreen({
     onNavigate,
     onSelectPost,
 }: UserProfileScreenProps) {
+    const { userId: routeUserId } = useParams<{ userId: string }>();
     const [targetProfileData, setTargetProfileData] = useState<any | null>(null);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followersCount, setFollowersCount] = useState(0);
@@ -43,7 +45,7 @@ export default function UserProfileScreen({
 
     // Fetch real profile stats from API
     useEffect(() => {
-        const targetId = user?.id || user?.name || 'user';
+        const targetId = routeUserId || user?.id || user?.name || 'user';
         const requestVersion = ++profileRequestVersion.current;
         getUserProfile(targetId)
             .then((data) => {
@@ -55,7 +57,7 @@ export default function UserProfileScreen({
                 }
             })
             .catch(() => {});
-    }, [user]);
+    }, [user, routeUserId]);
 
     const targetName = targetProfileData?.display_name || user?.display_name || user?.name || 'Coffee Lover';
     const targetHandle = targetProfileData?.username
@@ -80,9 +82,9 @@ export default function UserProfileScreen({
         setUserPosts(matched);
 
         // Fetch from API if user ID is available
-        if (user.id) {
+        if (routeUserId || user.id) {
             setIsLoading(true);
-            getUserPosts(user.id)
+            getUserPosts(routeUserId || user.id)
                 .then((fetched) => {
                     if (fetched && fetched.length > 0) {
                         setUserPosts(fetched);
@@ -91,12 +93,12 @@ export default function UserProfileScreen({
                 .catch(() => {})
                 .finally(() => setIsLoading(false));
         }
-    }, [user, allPosts, targetName]);
+    }, [user, routeUserId, allPosts, targetName]);
 
     const handleToggleFollow = async () => {
         if (isUpdatingFollow) return;
 
-        const targetId = user?.id || user?.name || targetName;
+        const targetId = routeUserId || user?.id || user?.name || targetName;
         const previousFollowing = isFollowing;
         const previousFollowersCount = followersCount;
         // Invalidate any profile request that started before this mutation;
@@ -286,7 +288,7 @@ export default function UserProfileScreen({
                         onClick={() => onSelectPost(post)}
                         className="aspect-square relative group cursor-pointer overflow-hidden bg-slate-100"
                     >
-                        <img src={post.imageUrl || undefined} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="Post" />
+                        <img src={post.imageUrl || undefined} width="320" height="320" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="Post" />
                         <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
                     </div>
                 ))}

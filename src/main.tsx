@@ -5,6 +5,7 @@ import './index.css';
 
 import {StatusBar, Style} from '@capacitor/status-bar';
 import {SplashScreen} from '@capacitor/splash-screen';
+import {App as CapacitorApp} from '@capacitor/app';
 import {defineCustomElements} from '@ionic/pwa-elements/loader';
 
 // Initialize Capacitor PWA Elements for web browser camera support
@@ -14,6 +15,13 @@ defineCustomElements(window);
 try {
   StatusBar.setStyle({ style: Style.Light }).catch(() => {});
   SplashScreen.hide().catch(() => {});
+  CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+    if (canGoBack && window.history.length > 1) {
+      window.history.back();
+    } else {
+      void CapacitorApp.exitApp();
+    }
+  });
 } catch {
   // Ignore in browser
 }

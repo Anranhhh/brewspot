@@ -82,7 +82,7 @@ export default function ProfileScreen({
         api.getSavedCafes(currentUser.id)
             .then((fetched) => setApiSavedCafes(fetched || []))
             .catch(() => setApiSavedCafes([]));
-    }, [currentUser, activeTab]);
+    }, [currentUser]);
 
     // Merge in-memory state with API collection results
     const localLiked = posts.filter(p => p.isLiked);
@@ -308,7 +308,7 @@ export default function ProfileScreen({
                         onClick={() => onSelectPost(post)}
                         className="aspect-square relative group cursor-pointer"
                     >
-                        <img src={post.imageUrl || undefined} className="w-full h-full object-cover" alt="User post" />
+                        <img src={post.imageUrl || undefined} width="320" height="320" loading="lazy" decoding="async" className="w-full h-full object-cover" alt="User post" />
                         <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors"></div>
                     </div>
                 ))}
@@ -318,7 +318,7 @@ export default function ProfileScreen({
                         onClick={() => onSelectCafe(cafe)}
                         className="flex items-center gap-4 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm cursor-pointer hover:bg-slate-50 transition-colors"
                     >
-                        <img src={cafe.heroImage || undefined} className="w-20 h-20 rounded-xl object-cover" alt={cafe.name} />
+                        <img src={cafe.heroImage || undefined} width="80" height="80" loading="lazy" decoding="async" className="w-20 h-20 rounded-xl object-cover" alt={cafe.name} />
                         <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-slate-900 truncate">{cafe.name}</h3>
                             <p className="text-xs text-slate-500 truncate mb-1">{cafe.address}</p>

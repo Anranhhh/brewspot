@@ -1,5 +1,6 @@
 import { Camera, ChevronLeft, Heart, MapPin, Share2, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useParams } from 'react-router-dom';
 import { Cafe, Post } from '../types';
 
 type CafeDetailsScreenProps = {
@@ -11,13 +12,15 @@ type CafeDetailsScreenProps = {
 };
 
 export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto, communityPosts = [] }: CafeDetailsScreenProps) {
+    const { cafeId: routeCafeId } = useParams<{ cafeId: string }>();
+    const resolvedCafeId = routeCafeId || cafe.id;
     const handleShare = async () => {
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: cafe.name,
                     text: `Check out ${cafe.name} on BrewSpot!`,
-                    url: window.location.href,
+                    url: `${window.location.origin}/cafe/${encodeURIComponent(resolvedCafeId)}`,
                 });
             } catch {
                 // Ignore share cancellation
@@ -49,7 +52,7 @@ export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto, communit
             </header>
 
             <div className="relative h-[450px] w-full">
-                <img src={cafe.heroImage || undefined} className="w-full h-full object-cover" alt={cafe.name} />
+                <img src={cafe.heroImage || undefined} width="860" height="900" fetchPriority="high" decoding="async" className="w-full h-full object-cover" alt={cafe.name} />
                 <button
                     onClick={onSave}
                     className="absolute -bottom-7 right-8 w-14 h-14 bg-white rounded-full shadow-xl flex items-center justify-center text-primary z-10 active:scale-95 transition-transform"
@@ -87,7 +90,7 @@ export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto, communit
                 <div className="columns-2 gap-4 space-y-4 mb-8">
                     {communityPosts.map((post) => (
                         <div key={post.id} className="relative overflow-hidden rounded-lg break-inside-avoid shadow-sm">
-                            <img src={post.imageUrl || undefined} className="w-full h-auto object-cover" alt={post.caption || cafe.name} />
+                            <img src={post.imageUrl || undefined} width="640" height="640" loading="lazy" decoding="async" className="w-full h-auto object-cover" alt={post.caption || cafe.name} />
                         </div>
                     ))}
                 </div>
@@ -95,7 +98,7 @@ export default function CafeDetails({ cafe, onBack, onSave, onAddPhoto, communit
                 <div className="columns-2 gap-4 space-y-4">
                     {cafe.inspirationImages.filter(Boolean).map((img, idx) => (
                         <div key={idx} className="relative overflow-hidden rounded-lg break-inside-avoid shadow-sm">
-                            <img src={img || undefined} className="w-full h-auto object-cover" alt="Inspiration" />
+                            <img src={img || undefined} width="640" height="640" loading="lazy" decoding="async" className="w-full h-auto object-cover" alt="Inspiration" />
                         </div>
                     ))}
                 </div>

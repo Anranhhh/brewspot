@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import { Search, SlidersHorizontal, Navigation, Heart, MapPin, Star, ChevronLeft, RefreshCw } from 'lucide-react';
-import { Cafe, Screen } from '../types';
+import { Cafe, Post, Screen } from '../types';
 import { Geolocation } from '@capacitor/geolocation';
 
 /**
@@ -40,49 +40,45 @@ async function getIpUserPosition(): Promise<LatLng | null> {
  * Retrieve current user position via Capacitor native Geolocation, Web Geolocation API, and IP fallback.
  */
 async function getCurrentUserPosition(): Promise<LatLng | null> {
-    // 1. Try Capacitor Geolocation (High accuracy)
-    try {
-        const position = await Geolocation.getCurrentPosition({
-            timeout: 3000,
-            enableHighAccuracy: true,
-            maximumAge: 60000,
-        });
-        return {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-        };
-    } catch {
-        // High accuracy failed or timed out
-    }
+    const isNativePlatform = typeof window !== 'undefined'
+        && Boolean((window as any).Capacitor?.isNativePlatform?.());
 
-    // 2. Try Capacitor Geolocation (Low accuracy / Wi-Fi positioning)
-    try {
-        const position = await Geolocation.getCurrentPosition({
-            timeout: 3000,
-            enableHighAccuracy: false,
-            maximumAge: 60000,
-        });
-        return {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-        };
-    } catch {
-        // Low accuracy failed
-    }
-
-    // 3. Try Browser Web Navigator Geolocation
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    // PWAs and mobile browsers must use the browser permission prompt. The
+    // Capacitor plugin can exist as a web shim and otherwise delay this path.
+    if (!isNativePlatform && typeof navigator !== 'undefined' && navigator.geolocation) {
         const webPos = await new Promise<LatLng | null>((resolve) => {
             navigator.geolocation.getCurrentPosition(
                 (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
                 () => resolve(null),
-                { timeout: 4000, enableHighAccuracy: false }
+                { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
             );
         });
         if (webPos) return webPos;
     }
 
-    // 4. Fallback to IP-based Geolocation (accurate to user's actual city / region)
+    if (isNativePlatform) {
+        try {
+            const position = await Geolocation.getCurrentPosition({
+                timeout: 8000,
+                enableHighAccuracy: true,
+                maximumAge: 60000,
+            });
+            return { lat: position.coords.latitude, lng: position.coords.longitude };
+        } catch {
+            try {
+                const position = await Geolocation.getCurrentPosition({
+                    timeout: 5000,
+                    enableHighAccuracy: false,
+                    maximumAge: 60000,
+                });
+                return { lat: position.coords.latitude, lng: position.coords.longitude };
+            } catch {
+                // Continue to the IP fallback below.
+            }
+        }
+    }
+
+    // This is only used when the device/browser declines or cannot provide GPS.
     const ipPos = await getIpUserPosition();
     if (ipPos) return ipPos;
 
@@ -98,6 +94,7 @@ declare global {
 
 type ExploreScreenProps = {
     cafes: Cafe[]; // Saved/loaded cafes from the backend database
+    posts: Post[];
     initialQuery?: string;
     onSelectCafe: (cafe: Cafe) => void;
     onNavigate: (s: Screen, data?: any) => void;
@@ -201,6 +198,7 @@ const getCafeCoords = (cafe: Cafe): LatLng => {
  */
 export default function Explore({
     cafes,
+    posts,
     initialQuery = '',
     onSelectCafe,
     onNavigate,
@@ -224,10 +222,16 @@ export default function Explore({
     const [overlays, setOverlays] = useState<Array<{ id: string; container: HTMLDivElement }>>([]);
     const [userOverlay, setUserOverlay] = useState<{ container: HTMLDivElement } | null>(null);
     const [hasMoved, setHasMoved] = useState(false);
-    const [locationAttempted, setLocationAttempted] = useState(false);
+    const autoCenteredOnLocation = useRef(false);
 
     const selectedCafe = googleCafes.find((c) => c.id === selectedId) ?? googleCafes[0];
     const [searchQuery, setSearchQuery] = useState(initialQuery);
+    const defaultCafeImage = '/images/cafe-nearby-default.jpeg';
+
+    const getCommunityImage = (cafe: Cafe): string => {
+        const post = posts.find((candidate) => candidate.cafeId === cafe.id);
+        return post?.mediaUrls?.find(Boolean) || post?.imageUrl || defaultCafeImage;
+    };
 
     useEffect(() => {
         if (initialQuery) {
@@ -257,7 +261,6 @@ export default function Explore({
             if (coords) {
                 setUserLocation(coords);
             }
-            setLocationAttempted(true);
         });
     }, []);
 
@@ -269,7 +272,12 @@ export default function Explore({
             return;
         }
         loadGoogleMapsScript(apiKey)
-            .then(() => {
+            .then(async (google) => {
+                // The script's onload event can fire before the async Maps
+                // library is ready. Preload both libraries before rendering
+                // the map screen so the first visit cannot race Map creation.
+                await google.maps.importLibrary('maps');
+                await google.maps.importLibrary('places');
                 setMapsLoaded(true);
             })
             .catch((err) => {
@@ -277,34 +285,62 @@ export default function Explore({
             });
     }, []);
 
-    // Initialize Map Instance
+    // Initialize Map Instance. With loading=async, Map is available only after
+    // importing the Maps library explicitly.
     useEffect(() => {
-        if (!mapsLoaded || !mapRef.current || map || !locationAttempted) return;
+        if (!mapsLoaded || !mapRef.current || map) return;
 
-        const google = window.google;
-        const initialCenter = userLocation || { lat: 40.7465, lng: -74.0014 }; // Chelsea coordinates default or user location
+        let cancelled = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        let attempt = 0;
+        const initializeMap = async () => {
+            try {
+                const google = window.google;
+                const mapsLibrary = await google.maps.importLibrary('maps');
+                const MapConstructor = mapsLibrary.Map;
+                if (!MapConstructor) throw new Error('Google Maps library did not expose Map.');
 
-        const mapInstance = new google.maps.Map(mapRef.current, {
-            center: initialCenter,
-            zoom: 14,
-            disableDefaultUI: true,
-            zoomControl: false,
-            mapTypeControl: false,
-            scaleControl: false,
-            streetViewControl: false,
-            rotateControl: false,
-            fullscreenControl: false,
-            styles: [
-                {
-                    "featureType": "poi",
-                    "elementType": "labels",
-                    "stylers": [{ "visibility": "off" }]
+                const mapInstance = new MapConstructor(mapRef.current, {
+                    center: userLocation || { lat: 40.7465, lng: -74.0014 },
+                    zoom: 14,
+                    disableDefaultUI: true,
+                    zoomControl: false,
+                    mapTypeControl: false,
+                    scaleControl: false,
+                    streetViewControl: false,
+                    rotateControl: false,
+                    fullscreenControl: false,
+                    styles: [{
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }],
+                    }],
+                });
+
+                if (!cancelled) setMap(mapInstance);
+            } catch (error) {
+                console.error('Failed to initialize Google Maps:', error);
+                if (!cancelled && attempt < 8) {
+                    attempt += 1;
+                    retryTimer = setTimeout(() => void initializeMap(), 250);
                 }
-            ]
-        });
+            }
+        };
 
-        setMap(mapInstance);
-    }, [mapsLoaded, locationAttempted, map, userLocation]);
+        void initializeMap();
+        return () => {
+            cancelled = true;
+            if (retryTimer) clearTimeout(retryTimer);
+        };
+    }, [mapsLoaded, map]);
+
+    useEffect(() => {
+        if (!map || !userLocation || autoCenteredOnLocation.current) return;
+        autoCenteredOnLocation.current = true;
+        map.panTo(userLocation);
+        map.setZoom(14);
+        void searchPlaces(map, activeCategory);
+    }, [map, userLocation, activeCategory]);
 
     const triggerDatabaseFallback = () => {
         const mappedDbCafes = cafes.map((cafe) => {
@@ -313,6 +349,7 @@ export default function Explore({
             const defaultLng = cafe.longitude ?? (name.includes('blanc') ? -74.0014 : name.includes('velvet') ? -73.9996 : -73.9855);
             return {
                 ...cafe,
+                heroImage: getCommunityImage(cafe),
                 latitude: defaultLat,
                 longitude: defaultLng
             };
@@ -413,27 +450,11 @@ export default function Explore({
 
                     const isSaved = cafes.some((c) => c.id === resolvedId && c.isSaved);
 
-                    // Get photo URL safely
-                    let heroImage = 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800';
-                    if (result.photos && result.photos.length > 0) {
-                        const photo = result.photos[0];
-                        if (typeof photo.getURI === 'function') {
-                            heroImage = photo.getURI({ maxWidth: 600, maxHeight: 400 });
-                        } else if (typeof photo.getUrl === 'function') {
-                            heroImage = photo.getUrl({ maxWidth: 600, maxHeight: 400 });
-                        }
-                    }
-
+                    // Use BrewSpot community media for map cards. Do not
+                    // persist or depend on Google photo resources here.
+                    const matchingCafe = cafes.find((cafe) => cafe.googlePlaceId === placeId || cafe.id === resolvedId);
+                    const heroImage = matchingCafe ? getCommunityImage(matchingCafe) : defaultCafeImage;
                     const inspirationImages: string[] = [];
-                    if (result.photos && result.photos.length > 1) {
-                        result.photos.slice(1, 5).forEach((p: any) => {
-                            if (typeof p.getURI === 'function') {
-                                inspirationImages.push(p.getURI({ maxWidth: 400, maxHeight: 300 }));
-                            } else if (typeof p.getUrl === 'function') {
-                                inspirationImages.push(p.getUrl({ maxWidth: 400, maxHeight: 300 }));
-                            }
-                        });
-                    }
 
                     // Price Level mapping
                     let priceLevel = '$$';
@@ -665,7 +686,7 @@ export default function Explore({
         return (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-slate-500 bg-[#f2ede4]">
                 <div className="h-12 w-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                <p className="text-sm">Loading map…</p>
+                <p className="text-sm">Getting your location and loading map…</p>
             </div>
         );
     }
@@ -807,7 +828,7 @@ export default function Explore({
                     <div className="bg-white rounded-xl shadow-2xl p-4 flex gap-4 items-center border border-primary/5">
                         <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0">
                             <img
-                                src={selectedCafe.heroImage || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&q=80&w=400'}
+                                src={selectedCafe.heroImage || defaultCafeImage}
                                 className="w-full h-full object-cover"
                                 alt={selectedCafe.name}
                                 referrerPolicy="no-referrer"

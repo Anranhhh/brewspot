@@ -187,7 +187,7 @@ export default function Discovery({
                                         onClick={() => onSelectCafe(cafe)}
                                     >
                                         <div className="relative h-[360px] rounded-lg overflow-hidden shadow-xl">
-                                            <img src={cafe.heroImage || undefined} className="w-full h-full object-cover" alt={cafe.name} />
+                                            <img src={cafe.heroImage || undefined} width="560" height="720" loading="eager" decoding="async" className="w-full h-full object-cover" alt={cafe.name} />
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
 
                                             <div className="absolute bottom-5 left-5 right-5 text-white">
@@ -245,7 +245,7 @@ export default function Discovery({
                                     onClick={() => onSelectPost(post)}
                                     className="break-inside-avoid relative rounded-lg overflow-hidden shadow-sm border border-slate-100 bg-white group cursor-pointer hover:shadow-md transition-all"
                                 >
-                                                    <img src={post.imageUrl || undefined} className="w-full object-cover" alt="Inspiration" />
+                                                    <img src={post.imageUrl || undefined} width="640" height="640" loading="lazy" decoding="async" className="w-full object-cover" alt="Inspiration" />
                                     <div className="p-3 bg-white">
                                         {post.title && (
                                             <h3 className="text-sm font-bold text-slate-900 mb-1">{post.title}</h3>
@@ -266,6 +266,10 @@ export default function Discovery({
                                         >
                                             <img
                                                 src={post.author?.profile || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
+                                                width="40"
+                                                height="40"
+                                                loading="lazy"
+                                                decoding="async"
                                                 className="w-5 h-5 rounded-full object-cover"
                                                 alt={post.author?.name}
                                             />
