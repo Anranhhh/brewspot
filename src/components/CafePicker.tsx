@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, MapPin, Search, X } from 'lucide-react';
 import { Cafe } from '../types';
 import * as api from '../services/api';
+import { loadGooglePlaces } from '../services/googleMaps';
 
 type GoogleCandidate = {
   id: string;
@@ -16,24 +17,6 @@ type GoogleCandidate = {
 };
 
 type Props = { value: Cafe | null; onChange: (cafe: Cafe | null) => void; initialCafes?: Cafe[] };
-
-function loadPlaces(): Promise<any> {
-  const w = window as any;
-  if (w.google?.maps?.places?.Place) return Promise.resolve(w.google.maps.places);
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  if (!key) return Promise.reject(new Error('Google Places is not configured.'));
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-brewspot-google-places]') as HTMLScriptElement | null;
-    if (existing) { existing.addEventListener('load', () => resolve(w.google.maps.places)); existing.addEventListener('error', reject); return; }
-    const script = document.createElement('script');
-    script.dataset.brewspotGooglePlaces = 'true';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async`;
-    script.async = true; script.defer = true;
-    script.onload = () => resolve(w.google.maps.places);
-    script.onerror = () => reject(new Error('Unable to load Google Places.'));
-    document.head.appendChild(script);
-  });
-}
 
 export default function CafePicker({ value, onChange, initialCafes = [] }: Props) {
   const [query, setQuery] = useState('');
@@ -90,8 +73,10 @@ export default function CafePicker({ value, onChange, initialCafes = [] }: Props
   const searchGoogle = async () => {
     setError(null); setLoading(true); setGoogleResults([]);
     try {
-      const places = await loadPlaces();
-      const { places: results } = await places.Place.searchByText({
+      const placesLibrary = await loadGooglePlaces();
+      const PlaceClass = placesLibrary.Place;
+      if (!PlaceClass) throw new Error('Google Places library is unavailable in this build.');
+      const { places: results } = await PlaceClass.searchByText({
         textQuery: query.trim(),
         fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'priceLevel', 'types'],
         maxResultCount: 8,

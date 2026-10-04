@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Search, SlidersHorizontal, Navigation, Heart, MapPin, Star, ChevronLeft, RefreshCw } from 'lucide-react';
 import { Cafe, Post, Screen } from '../types';
 import { Geolocation } from '@capacitor/geolocation';
+import { loadGoogleMapsScript } from '../services/googleMaps';
 
 /**
  * IP-based geolocation fallback when GPS / CoreLocation is unavailable or times out.
@@ -85,13 +86,6 @@ async function getCurrentUserPosition(): Promise<LatLng | null> {
     return null;
 }
 
-// Declare global window interfaces for TypeScript safety
-declare global {
-    interface Window {
-        google?: any;
-    }
-}
-
 type ExploreScreenProps = {
     cafes: Cafe[]; // Saved/loaded cafes from the backend database
     posts: Post[];
@@ -107,44 +101,6 @@ type ExploreScreenProps = {
 interface LatLng {
     lat: number;
     lng: number;
-}
-
-// Global script loading state variables
-let isScriptLoaded = false;
-let scriptLoadPromise: Promise<any> | null = null;
-
-/**
- * Dynamically load the Google Maps JavaScript API script.
- * @param apiKey Google Maps API Key
- * @returns Promise resolving to the google object
- */
-function loadGoogleMapsScript(apiKey: string): Promise<any> {
-    if (isScriptLoaded) return Promise.resolve(window.google);
-    if (scriptLoadPromise) return scriptLoadPromise;
-
-    scriptLoadPromise = new Promise((resolve, reject) => {
-        if (window.google && window.google.maps) {
-            isScriptLoaded = true;
-            resolve(window.google);
-            return;
-        }
-
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
-        script.async = true;
-        script.defer = true;
-        script.onload = () => {
-            isScriptLoaded = true;
-            resolve(window.google);
-        };
-        script.onerror = (err) => {
-            scriptLoadPromise = null;
-            reject(err);
-        };
-        document.head.appendChild(script);
-    });
-
-    return scriptLoadPromise;
 }
 
 /**
@@ -266,19 +222,15 @@ export default function Explore({
 
     // Load Google Maps API SDK script
     useEffect(() => {
-        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-        if (!apiKey) {
-            console.warn('VITE_GOOGLE_MAPS_API_KEY is not defined in .env');
-            return;
-        }
-        loadGoogleMapsScript(apiKey)
+        loadGoogleMapsScript()
             .then(async (google) => {
-                // The script's onload event can fire before the async Maps
-                // library is ready. Preload both libraries before rendering
-                // the map screen so the first visit cannot race Map creation.
+                // The map can render as soon as the Maps library is ready.
+                // Places loads in parallel and is imported by search when used.
                 await google.maps.importLibrary('maps');
-                await google.maps.importLibrary('places');
                 setMapsLoaded(true);
+                void google.maps.importLibrary('places').catch((error: unknown) => {
+                    console.warn('Google Places library is not ready yet:', error);
+                });
             })
             .catch((err) => {
                 console.error('Failed to load Google Maps SDK script:', err);
